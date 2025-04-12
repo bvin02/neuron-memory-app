@@ -43,6 +43,3 @@ for i, note in enumerate(notes):
     
 with open("db.json", "w") as f:
     json.dump(notes, f, indent=4)
-# cosine_sim = util.cos_sim(embedding, embedding2)
-
-# print("Cosine Similarity:", cosine_sim.item())
