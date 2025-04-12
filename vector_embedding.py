@@ -8,9 +8,19 @@ model = SentenceTransformer('all-MiniLM-L6-v2')
 
 # Step 3: Define the summary text (this should be the output of your summarization model)
 summary_text = (
-    "The study highlights significant advancements in the field of renewable energy, "
-    "demonstrating that innovative solar panels can substantially increase energy efficiency "
-    "while reducing costs. The research suggests a promising future for widespread adoption and further development."
+   """ Meeting Summary: Google Maps API Integration
+
+Overview:
+Discussion focused on integrating Google Maps API for location-based business search and routing.
+
+Key Concepts:
+- Enabled proper billing and permissions for API functionality.
+- Users can now search for nearby businesses and get visual routes.
+
+Next Steps:
+- Customize map markers with branded icons.
+- Implement filters for categories (e.g., restaurants, stores).
+"""
 )
 
 # Step 4: Generate the embedding for the summary
@@ -24,9 +34,36 @@ print("Embedding vector shape:", embedding.shape)
 print("Normalized embedding (first 5 values):", embedding_normalized[:5])
 
 
-summary_text = (
-    "We used python technlogies 3.9.9 and PyTorch 1.10.1 to train and test our models, but the codebase is expected to be compatible with Python 3.8-3.11 and recent PyTorch versions. The codebase also depends on a few Python packages, most notably OpenAI's tiktoken for their fast tokenizer implementation. You can download and install (or update to) the latest release of Whisper with the following command:"
-)
+summary_text = ("""
+Meeting Summary: Arbitrage Model for Index Basket Trading
+
+Overview:
+We discussed implementing an arbitrage trading model based on pricing inefficiencies between index baskets and their underlying assets.
+
+Key Concepts:
+- Arbitrage Definition: Exploiting price discrepancies between an index (e.g., S&P-like basket) and its component stocks.
+- Pricing Inefficiencies: The sum of individual stock prices may not match the index price due to supply-demand dynamics, creating arbitrage opportunities.
+- Strategy:
+  - If index price > sum of components → Short index, Long components.
+  - If index price < sum of components → Long index, Short components.
+  - Positions are liquidated when prices converge.
+
+Structure:
+- Three assets and two baskets:
+  1. Basket A – contains all 3 assets.
+  2. Basket B – contains 2 of the 3.
+- Types of Arbitrage:
+  1. Arbitrage between Basket A and all 3 products.
+  2. Arbitrage between Basket B and the 2 products.
+  3. Arbitrage using Basket A = Basket B + Product 3.
+
+Current Progress:
+- Entry logic for trades has been implemented.
+- Remaining Tasks:
+  - Implement position liquidation logic when prices converge.
+  - Ensure no position limits are exceeded when using overlapping products across multiple baskets.
+""")
+
 # Step 4: Generate the embedding for the summary
 embedding2 = model.encode(summary_text)
 
