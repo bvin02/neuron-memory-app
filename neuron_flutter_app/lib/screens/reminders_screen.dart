@@ -123,6 +123,13 @@ class _RemindersScreenState extends State<RemindersScreen> {
   }
 
   Future<void> _selectDate(Reminder reminder) async {
+    // Create a copy of the initial date to avoid reference issues
+    DateTime currentDate = DateTime(
+      reminder.dueDate.year,
+      reminder.dueDate.month,
+      reminder.dueDate.day,
+    );
+    
     final DateTime? picked = await showDialog<DateTime>(
       context: context,
       builder: (context) {
@@ -221,12 +228,20 @@ class _RemindersScreenState extends State<RemindersScreen> {
                         ),
                       ),
                     ),
-                    child: CalendarDatePicker(
-                      initialDate: reminder.dueDate,
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime(2100),
-                      onDateChanged: (date) {
-                        Navigator.of(context).pop(date);
+                    child: StatefulBuilder(
+                      builder: (context, setModalState) {
+                        return CalendarDatePicker(
+                          initialDate: currentDate,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                          onDateChanged: (date) {
+                            setModalState(() {
+                              currentDate = date;
+                            });
+                            Navigator.of(context).pop(date);
+                          },
+                          currentDate: currentDate,
+                        );
                       },
                     ),
                   ),
@@ -247,8 +262,17 @@ class _RemindersScreenState extends State<RemindersScreen> {
           reminder.dueTime?.hour ?? reminder.dueDate.hour,
           reminder.dueTime?.minute ?? reminder.dueDate.minute,
         );
+        
+        // Update the due time as well if it's null
+        if (reminder.dueTime == null) {
+          reminder.dueTime = reminder.dueDate;
+        }
+        
         widget.onRemindersUpdated(_reminders);
       });
+      
+      // Make sure to save the updated reminder to the database
+      await NeuronDatabase.saveReminder(reminder);
     }
   }
 
@@ -258,6 +282,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
       hour: reminder.dueTime?.hour ?? 23,
       minute: reminder.dueTime?.minute ?? 59,
     );
+    
+    // Create a mutable copy of the initial time
+    TimeOfDay currentTime = initialTime;
     
     final TimeOfDay? picked = await showDialog<TimeOfDay>(
       context: context,
@@ -357,12 +384,16 @@ class _RemindersScreenState extends State<RemindersScreen> {
                         ),
                       ),
                     ),
-                    child: TimePickerDialog(
-                      initialTime: initialTime,
-                      initialEntryMode: TimePickerEntryMode.dial,
-                      cancelText: 'Cancel',
-                      confirmText: 'OK',
-                      helpText: '',
+                    child: StatefulBuilder(
+                      builder: (context, setModalState) {
+                        return TimePickerDialog(
+                          initialTime: currentTime,
+                          initialEntryMode: TimePickerEntryMode.dial,
+                          cancelText: 'Cancel',
+                          confirmText: 'OK',
+                          helpText: '',
+                        );
+                      }
                     ),
                   ),
                 ),
@@ -384,6 +415,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
         );
         widget.onRemindersUpdated(_reminders);
       });
+      
+      // Make sure to save the updated reminder to the database
+      await NeuronDatabase.saveReminder(reminder);
     }
   }
 

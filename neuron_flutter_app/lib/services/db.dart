@@ -10,16 +10,17 @@ class NeuronDatabase {
   static late Isar isar;
   
   /// Initialize the database
-  static Future<void> initialize() async {
+  static Future<void> initialize({bool forceRecreate = false}) async {
     final dir = await getApplicationDocumentsDirectory();
     isar = await Isar.open(
       [NoteSchema, EventSchema, ReminderSchema, GraphDataSchema],
       directory: dir.path,
     );
 
-    // Only create sample notes if the database is completely empty
-    final existingNotes = await getAllNotes();
-    if (existingNotes.isEmpty) {
+    // Clear and recreate sample notes if forced or if there are no notes
+    final noteCount = await isar.notes.count();
+    if (forceRecreate || noteCount == 0) {
+      await clearAllNotes(); // Clear existing notes
       await createSampleNotes();
       print('Created initial sample notes');
     }
@@ -43,8 +44,13 @@ class NeuronDatabase {
   
   /// Create sample notes for testing
   static Future<void> createSampleNotes() async {
+    // First clear all existing notes
+    await clearAllNotes();
+    print('Cleared all existing notes');
+    
     final now = DateTime.now();
     final sampleNotes = [
+      // Original 8 notes with enhanced embeddings and tags
       Note.create(
         title: "Weekly Planning",
         content: """# Week Overview
@@ -57,8 +63,14 @@ class NeuronDatabase {
 ## Focus Areas
 1. Performance optimization
 2. User interface improvements
-3. Documentation updates""",
-        tags: ["planning", "weekly"],
+3. Documentation updates
+
+## Success Metrics
+* Sprint velocity
+* Code quality metrics
+* Team satisfaction""",
+        tags: ["project-management", "agile", "team-coordination"],
+        embedding: [0.82, 0.15, -0.23, 0.45, 0.67, -0.12, 0.34, 0.91, -0.56, 0.78],
         createdAt: now.subtract(const Duration(days: 7, hours: 3)),
       ),
       
@@ -74,8 +86,14 @@ Key areas to explore:
 ### Implementation Notes
 - Use PyTorch for prototypes
 - Focus on efficiency
-- Consider mobile deployment""",
-        tags: ["research", "AI", "technical"],
+- Consider mobile deployment
+
+### Research Papers
+1. "Attention Is All You Need"
+2. "BERT: Pre-training of Deep Bidirectional Transformers"
+3. "Mobile-Former: Bridging MobileNet and Transformer" """,
+        tags: ["machine-learning", "deep-learning", "research-papers"],
+        embedding: [0.95, 0.23, 0.67, -0.34, 0.12, 0.89, -0.45, 0.56, 0.78, -0.91],
         createdAt: now.subtract(const Duration(days: 6, hours: 5)),
       ),
       
@@ -96,8 +114,14 @@ Key areas to explore:
 ## Components
 1. Buttons
 2. Cards
-3. Navigation elements""",
-        tags: ["design", "UI", "guidelines"],
+3. Navigation elements
+
+## Accessibility
+- WCAG 2.1 compliance
+- Color contrast ratios
+- Screen reader support""",
+        tags: ["design-system", "accessibility", "ui-components"],
+        embedding: [0.34, 0.78, -0.56, 0.91, 0.23, -0.67, 0.45, 0.12, -0.89, 0.01],
         createdAt: now.subtract(const Duration(days: 5, hours: 8)),
       ),
       
@@ -118,8 +142,15 @@ User -> UI -> Service Layer -> Database
 ## Considerations
 - Scalability
 - Performance
-- Security""",
-        tags: ["architecture", "technical", "planning"],
+- Security
+
+## Technical Stack
+- Flutter for cross-platform UI
+- Node.js microservices
+- PostgreSQL for data persistence
+- Redis for caching""",
+        tags: ["system-design", "architecture", "tech-stack"],
+        embedding: [0.67, -0.45, 0.89, 0.12, 0.34, -0.78, 0.56, 0.23, -0.91, 0.04],
         createdAt: now.subtract(const Duration(days: 4, hours: 2)),
       ),
       
@@ -137,8 +168,14 @@ User -> UI -> Service Layer -> Database
 ### Action Items
 - [ ] Update documentation
 - [ ] Review pull requests
-- [ ] Schedule follow-up""",
-        tags: ["meeting", "team", "planning"],
+- [ ] Schedule follow-up
+
+### Decisions Made
+1. Adopt new code review process
+2. Implement automated testing
+3. Weekly architecture reviews""",
+        tags: ["meetings", "sprint-planning", "team-collaboration"],
+        embedding: [0.56, 0.91, -0.23, 0.78, 0.34, -0.67, 0.12, 0.45, -0.89, 0.01],
         createdAt: now.subtract(const Duration(days: 3, hours: 6)),
       ),
       
@@ -159,8 +196,14 @@ User -> UI -> Service Layer -> Database
 ## User Requests
 * Better navigation
 * More keyboard shortcuts
-* Export options""",
-        tags: ["features", "planning", "product"],
+* Export options
+
+## Market Research
+- Competitor analysis
+- User feedback synthesis
+- Usage metrics""",
+        tags: ["product-roadmap", "user-experience", "feature-planning"],
+        embedding: [0.78, -0.34, 0.91, 0.23, 0.56, -0.67, 0.12, 0.45, -0.89, 0.01],
         createdAt: now.subtract(const Duration(days: 2, hours: 4)),
       ),
       
@@ -181,8 +224,14 @@ User -> UI -> Service Layer -> Database
 ## Common Issues
 * Missing tests
 * Poor naming
-* Duplicate code""",
-        tags: ["coding", "guidelines", "team"],
+* Duplicate code
+
+## Best Practices
+1. Small, focused changes
+2. Clear commit messages
+3. Documentation updates""",
+        tags: ["code-quality", "development-process", "best-practices"],
+        embedding: [0.89, 0.12, -0.45, 0.67, 0.34, -0.78, 0.23, 0.56, -0.91, 0.04],
         createdAt: now.subtract(const Duration(days: 1, hours: 7)),
       ),
       
@@ -203,17 +252,390 @@ User -> UI -> Service Layer -> Database
 ## Blogs & Websites
 * Flutter Dev
 * Medium
-* GitHub Blog""",
-        tags: ["learning", "resources", "development"],
+* GitHub Blog
+
+## Learning Paths
+1. Mobile Development
+2. Cloud Architecture
+3. AI/ML Integration""",
+        tags: ["education", "professional-development", "resources"],
+        embedding: [0.45, 0.91, -0.23, 0.67, 0.34, -0.78, 0.12, 0.56, -0.89, 0.01],
         createdAt: now.subtract(const Duration(hours: 5)),
+      ),
+
+      // Additional 10 new notes with diverse topics and meaningful content
+      Note.create(
+        title: "API Security Best Practices",
+        content: """# API Security Guidelines
+
+## Authentication
+1. JWT implementation
+2. OAuth2 flow
+3. API key management
+
+## Security Measures
+- Rate limiting
+- Input validation
+- Request sanitization
+
+## Monitoring
+* Access logs
+* Error tracking
+* Performance metrics
+
+## Common Vulnerabilities
+1. SQL injection
+2. XSS attacks
+3. CSRF protection""",
+        tags: ["security", "api-design", "best-practices"],
+        embedding: [0.78, 0.34, -0.56, 0.91, 0.23, -0.67, 0.45, 0.12, -0.89, 0.01],
+        createdAt: now.subtract(const Duration(days: 8, hours: 2)),
+      ),
+
+      Note.create(
+        title: "Mobile App Performance Optimization",
+        content: """# Performance Optimization
+
+## Key Metrics
+1. Launch time
+2. Frame rate
+3. Memory usage
+
+## Optimization Techniques
+- Image caching
+- Lazy loading
+- Memory management
+
+## Monitoring Tools
+* Firebase Performance
+* XCode Instruments
+* Android Profiler
+
+## Best Practices
+1. Minimize main thread work
+2. Optimize asset loading
+3. Implement proper state management""",
+        tags: ["mobile-development", "performance", "optimization"],
+        embedding: [0.67, 0.91, -0.34, 0.56, 0.23, -0.78, 0.12, 0.45, -0.89, 0.01],
+        createdAt: now.subtract(const Duration(days: 9, hours: 4)),
+      ),
+
+      Note.create(
+        title: "State Management Patterns",
+        content: """# State Management
+
+## Popular Solutions
+1. Provider
+2. Bloc
+3. Riverpod
+
+## Key Concepts
+- State immutability
+- Unidirectional data flow
+- Dependency injection
+
+## Implementation Patterns
+* Repository pattern
+* Service locator
+* Factory methods
+
+## Testing Strategies
+1. Unit tests
+2. Widget tests
+3. Integration tests""",
+        tags: ["flutter", "state-management", "architecture"],
+        embedding: [0.89, 0.23, -0.45, 0.67, 0.34, -0.91, 0.12, 0.56, -0.78, 0.01],
+        createdAt: now.subtract(const Duration(days: 10, hours: 6)),
+      ),
+
+      Note.create(
+        title: "Database Schema Design",
+        content: """# Database Architecture
+
+## Schema Design
+1. Normalization rules
+2. Index optimization
+3. Relationship mapping
+
+## Performance
+- Query optimization
+- Caching strategies
+- Connection pooling
+
+## Data Types
+* Numeric types
+* Text and BLOB
+* Temporal types
+
+## Backup Strategies
+1. Full backups
+2. Incremental backups
+3. Point-in-time recovery""",
+        tags: ["database", "schema-design", "optimization"],
+        embedding: [0.56, 0.78, -0.23, 0.91, 0.45, -0.67, 0.34, 0.12, -0.89, 0.01],
+        createdAt: now.subtract(const Duration(days: 11, hours: 3)),
+      ),
+
+      Note.create(
+        title: "CI/CD Pipeline Setup",
+        content: """# Continuous Integration/Deployment
+
+## Pipeline Stages
+1. Build
+2. Test
+3. Deploy
+
+## Tools
+- Jenkins
+- GitHub Actions
+- Docker
+
+## Automation
+* Automated testing
+* Code quality checks
+* Deployment scripts
+
+## Best Practices
+1. Fast feedback
+2. Parallel execution
+3. Environment parity""",
+        tags: ["devops", "automation", "deployment"],
+        embedding: [0.45, 0.91, -0.34, 0.67, 0.23, -0.78, 0.12, 0.56, -0.89, 0.01],
+        createdAt: now.subtract(const Duration(days: 12, hours: 5)),
+      ),
+
+      Note.create(
+        title: "User Authentication Flow",
+        content: """# Authentication System
+
+## Login Methods
+1. Email/Password
+2. Social auth
+3. Biometric
+
+## Security Measures
+- Password hashing
+- Session management
+- 2FA implementation
+
+## User Experience
+* Smooth onboarding
+* Password recovery
+* Account management
+
+## Technical Implementation
+1. Token management
+2. Secure storage
+3. API integration""",
+        tags: ["authentication", "security", "user-experience"],
+        embedding: [0.78, 0.23, -0.56, 0.91, 0.34, -0.67, 0.12, 0.45, -0.89, 0.01],
+        createdAt: now.subtract(const Duration(days: 13, hours: 7)),
+      ),
+
+      Note.create(
+        title: "Error Handling Strategies",
+        content: """# Error Management
+
+## Error Types
+1. Network errors
+2. User input errors
+3. System errors
+
+## Handling Approaches
+- Try-catch blocks
+- Error boundaries
+- Graceful degradation
+
+## User Communication
+* Clear messages
+* Recovery options
+* Error tracking
+
+## Monitoring
+1. Error logging
+2. Analytics
+3. User feedback""",
+        tags: ["error-handling", "user-experience", "monitoring"],
+        embedding: [0.67, 0.91, -0.23, 0.56, 0.34, -0.78, 0.12, 0.45, -0.89, 0.01],
+        createdAt: now.subtract(const Duration(days: 14, hours: 4)),
+      ),
+
+      Note.create(
+        title: "Responsive Design Principles",
+        content: """# Responsive UI
+
+## Layout Principles
+1. Fluid grids
+2. Flexible images
+3. Media queries
+
+## Breakpoints
+- Mobile
+- Tablet
+- Desktop
+
+## Testing
+* Cross-device testing
+* Accessibility checks
+* Performance metrics
+
+## Best Practices
+1. Mobile-first approach
+2. Progressive enhancement
+3. Content prioritization""",
+        tags: ["responsive-design", "ui-development", "mobile-first"],
+        embedding: [0.89, 0.34, -0.45, 0.67, 0.23, -0.91, 0.12, 0.56, -0.78, 0.01],
+        createdAt: now.subtract(const Duration(days: 15, hours: 6)),
+      ),
+
+      Note.create(
+        title: "Data Analytics Implementation",
+        content: """# Analytics System
+
+## Tracking Points
+1. User actions
+2. Performance metrics
+3. Error events
+
+## Tools
+- Google Analytics
+- Mixpanel
+- Custom solutions
+
+## Data Processing
+* Event filtering
+* Data aggregation
+* Visualization
+
+## Insights
+1. User behavior
+2. Feature usage
+3. Performance trends""",
+        tags: ["analytics", "data-analysis", "monitoring"],
+        embedding: [0.56, 0.78, -0.34, 0.91, 0.23, -0.67, 0.45, 0.12, -0.89, 0.01],
+        createdAt: now.subtract(const Duration(days: 16, hours: 3)),
+      ),
+
+      Note.create(
+        title: "App Localization Guide",
+        content: """# Localization
+
+## Implementation Steps
+1. String extraction
+2. Translation management
+3. RTL support
+
+## Best Practices
+- Context provision
+- Placeholder handling
+- Number formatting
+
+## Testing
+* String verification
+* Layout testing
+* Cultural appropriateness
+
+## Tools
+1. Flutter intl
+2. Translation management
+3. Automated testing""",
+        tags: ["localization", "internationalization", "flutter"],
+        embedding: [0.45, 0.91, -0.23, 0.67, 0.34, -0.78, 0.12, 0.56, -0.89, 0.01],
+        createdAt: now.subtract(const Duration(days: 17, hours: 5)),
       ),
     ];
 
+    // Step 1: First save all notes to get their IDs
+    final savedNoteIds = <int>[];
     await isar.writeTxn(() async {
       for (final note in sampleNotes) {
-        await isar.notes.put(note);
+        final id = await isar.notes.put(note);
+        savedNoteIds.add(id);
+        print('Saved note with ID: $id, Title: ${note.title}');
       }
     });
+
+    // Step 2: Retrieve all saved notes to work with their IDs
+    final savedNotes = await Future.wait(
+      savedNoteIds.map((id) => isar.notes.get(id))
+    );
+    print('Retrieved ${savedNotes.length} notes for linking');
+
+    // Step 3: Create backlinks based on embedding similarity and content relevance
+    await isar.writeTxn(() async {
+      for (int i = 0; i < savedNotes.length; i++) {
+        final currentNote = savedNotes[i]!;
+        print('\nProcessing links for note: ${currentNote.title}');
+        
+        // Calculate similarities with other notes
+        List<MapEntry<Note, double>> similarities = [];
+        for (int j = 0; j < savedNotes.length; j++) {
+          if (i == j) continue;
+          final otherNote = savedNotes[j]!;
+          
+          // Calculate embedding similarity
+          double embeddingSimilarity = _cosineSimilarity(
+            currentNote.embedding,
+            otherNote.embedding
+          );
+          
+          // Calculate tag similarity (number of shared tags / total unique tags)
+          Set<String> currentTags = currentNote.tags.toSet();
+          Set<String> otherTags = otherNote.tags.toSet();
+          double tagSimilarity = currentTags.intersection(otherTags).length /
+              currentTags.union(otherTags).length;
+          
+          // Combined similarity score (70% embedding, 30% tags)
+          double combinedSimilarity = (embeddingSimilarity * 0.7) + (tagSimilarity * 0.3);
+          
+          similarities.add(MapEntry(otherNote, combinedSimilarity));
+          print('Similarity with ${otherNote.title}: $combinedSimilarity');
+        }
+        
+        // Sort by similarity and take top 2 most relevant notes
+        similarities.sort((a, b) => b.value.compareTo(a.value));
+        final mostSimilar = similarities.take(2).map((e) => e.key).toList();
+        print('Most similar notes: ${mostSimilar.map((n) => n.title).join(', ')}');
+        
+        // Clear existing links
+        await currentNote.links.load();
+        currentNote.links.clear();
+        print('Cleared existing links');
+        
+        // Add new links and save
+        for (final similarNote in mostSimilar) {
+          // Load the links collection for the similar note
+          await similarNote.links.load();
+          
+          // Add bidirectional links
+          currentNote.links.add(similarNote);
+          print('Added link from ${currentNote.title} to ${similarNote.title}');
+          
+          // Save both notes
+          await isar.notes.put(similarNote);
+        }
+        await isar.notes.put(currentNote);
+        
+        // Verify links were saved for this note
+        final verifiedNote = await isar.notes.get(currentNote.id!);
+        await verifiedNote?.links.load();
+        print('Verified links for ${verifiedNote?.title}: ${verifiedNote?.links.length ?? 0} links');
+      }
+    });
+
+    // Step 4: Final verification of all links
+    print('\nFinal verification of all notes and their links:');
+    final allNotes = await getAllNotes();
+    for (final note in allNotes) {
+      await note.links.load();
+      final linkedTitles = note.links.map((n) => n.title).join(', ');
+      print('''
+Note: ${note.title}
+ID: ${note.id}
+Number of links: ${note.links.length}
+Linked to: $linkedTitles
+''');
+    }
   }
   
   /// Save a note to the database

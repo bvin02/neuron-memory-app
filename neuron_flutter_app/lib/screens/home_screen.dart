@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../services/audio_recorder_service.dart';
 import '../services/db.dart';
+import '../services/google_calendar_service.dart';
 import 'graph_view.dart';
 import 'search_screen.dart';
 
@@ -29,8 +30,11 @@ class _HomeScreenState extends State<HomeScreen> {
   double _startX = 0;
   final List<Reminder> _reminders = [];
   final List<Note> _notes = [];
+  final List<CalendarEvent> _calendarEvents = [];
   final _audioService = AudioRecorderService();
+  final _calendarService = GoogleCalendarService();
   String? _recordedFilePath;
+  bool _isLoadingCalendar = false;
 
   @override
   void initState() {
@@ -38,6 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _initRecorder();
     _loadReminders();
     _loadNotes();
+    _loadCalendarEvents();
   }
 
   @override
@@ -50,6 +55,37 @@ class _HomeScreenState extends State<HomeScreen> {
     await _audioService.initRecorder();
   }
 
+  Future<void> _loadCalendarEvents() async {
+    if (_isLoadingCalendar) return;
+
+    setState(() {
+      _isLoadingCalendar = true;
+    });
+
+    try {
+      final googleEvents = await _calendarService.fetchEvents();
+      final events = googleEvents.map((e) => CalendarEvent.fromGoogleEvent(e)).toList();
+      
+      // Sort events by start time
+      events.sort((a, b) {
+        final aMinutes = a.startTime.hour * 60 + a.startTime.minute;
+        final bMinutes = b.startTime.hour * 60 + b.startTime.minute;
+        return aMinutes.compareTo(bMinutes);
+      });
+
+      setState(() {
+        _calendarEvents.clear();
+        _calendarEvents.addAll(events);
+      });
+    } catch (e) {
+      print('Failed to load calendar events: $e');
+    } finally {
+      setState(() {
+        _isLoadingCalendar = false;
+      });
+    }
+  }
+
   Future<void> _toggleRecording() async {
     if (_isRecording) {
       final path = await _audioService.stopRecording();
@@ -57,35 +93,30 @@ class _HomeScreenState extends State<HomeScreen> {
         _isRecording = false;
       });
       
+      // Wait for 1 second before showing the popup
+      await Future.delayed(const Duration(seconds: 1));
+      
+      // Show green success popup
+      if (mounted) {  // Check if widget is still mounted before showing snackbar
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'New note added',
+              style: TextStyle(color: Colors.white),
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.only(bottom: 20.0, left: 20.0, right: 20.0),
+          ),
+        );
+      }
+      
       if (path != null) {
         _recordedFilePath = path;
         print('Recording saved to: $path');
-        
-        // Extract just the filename for display
-        final fileName = path.split('/').last;
-        
-        // Show a snackbar with the file path
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Recording saved as: $fileName'),
-            backgroundColor: Colors.blue,
-            duration: const Duration(seconds: 3),
-            action: SnackBarAction(
-              label: 'OK',
-              onPressed: () {},
-            ),
-          ),
-        );
-        
-        // Here you could add code to handle the recording (transcribe, etc.)
       } else {
         print('Recording stopped but no file path returned');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Recording stopped but file not saved'),
-            backgroundColor: Colors.orange,
-          ),
-        );
       }
     } else {
       final success = await _audioService.startRecording();
@@ -351,7 +382,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 24),
                       NeuronCard(
                         title: 'Calendar',
-                        subtitle: '10:00  —  Team Meeting\n11:00  —  Project Update\n2:00   —  Client Call',
+                        subtitle: _isLoadingCalendar
+                            ? 'Loading events...'
+                            : _calendarEvents.isEmpty
+                                ? 'No events today'
+                                : _calendarEvents.take(3).map((event) {
+                                    return '${_formatTime(event.startTime)}  —  ${event.title}';
+                                  }).join('\n'),
                         blurBackground: true,
                         onTap: (context) {
                           Navigator.push(
@@ -367,7 +404,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                 return SlideTransition(position: offsetAnimation, child: child);
                               },
                             ),
-                          );
+                          ).then((_) {
+                            // Refresh calendar events when returning from calendar screen
+                            _loadCalendarEvents();
+                          });
                         },
                       ),
                       const SizedBox(height: 12),
@@ -539,5 +579,12 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  String _formatTime(TimeOfDay time) {
+    final hour = time.hour == 0 ? 12 : (time.hour > 12 ? time.hour - 12 : time.hour);
+    final minute = time.minute.toString().padLeft(2, '0');
+    final period = time.hour < 12 ? 'a' : 'p';
+    return '$hour:$minute$period';
   }
 }
