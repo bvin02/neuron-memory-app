@@ -40,17 +40,15 @@ class AudioRecorderService {
         final now = DateTime.now();
         final formattedDate = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}-${now.minute.toString().padLeft(2, '0')}-${now.second.toString().padLeft(2, '0')}';
         
-        // Use WAV format instead of m4a
-        final filePath = '${recordingsDir.path}/recording_$formattedDate.wav';
+        final filePath = '${recordingsDir.path}/recording_$formattedDate.m4a';
         _recordedFilePath = filePath;
         
-        // Configure recording options for Whisper compatibility
+        // Configure recording options
         await _audioRecorder.start(
           path: filePath,
-          encoder: AudioEncoder.wav,       // Use WAV format
-          bitRate: 256000,                 // Higher bitrate for better quality
-          samplingRate: 16000,             // 16kHz is optimal for Whisper
-          numChannels: 1,                  // Mono audio (single channel)
+          encoder: AudioEncoder.aacLc,
+          bitRate: 128000,
+          samplingRate: 44100,
         );
         
         _isRecording = true;
