@@ -38,9 +38,13 @@ class _NoteOrganizationScreenState extends State<NoteOrganizationScreen> {
   Future<void> _loadInitialData() async {
     await _loadPreferences();
     await _loadNotes();
-    // Initialize all groups as expanded by default
+    // Initialize with expanded groups only if in time-based sorting
     setState(() {
-      _expandedGroups = _groups.map((group) => group.header).toSet();
+      if (_isTimeBasedSorting) {
+        _expandedGroups = _groups.map((group) => group.header).toSet();
+      } else {
+        _expandedGroups.clear();
+      }
     });
   }
 
@@ -132,7 +136,14 @@ class _NoteOrganizationScreenState extends State<NoteOrganizationScreen> {
   void _toggleSortingMode() async {
     setState(() {
       _isTimeBasedSorting = !_isTimeBasedSorting;
+      // When switching modes, set expand state based on the mode
+      if (_isTimeBasedSorting) {
+        _expandedGroups = _groups.map((group) => group.header).toSet();
+      } else {
+        _expandedGroups.clear();
+      }
     });
+    
     final notes = await NeuronDatabase.getAllNotes();
     _organizeNotes(notes);
     
@@ -250,9 +261,7 @@ class _NoteOrganizationScreenState extends State<NoteOrganizationScreen> {
                               child: Text(
                                 group.header,
                                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  color: group.isCustom 
-                                    ? Colors.white70 
-                                    : const Color(0xFFE0E7FF),
+                                  color: const Color(0xFFE0E7FF),
                                   fontSize: 18,
                                 ),
                               ),
