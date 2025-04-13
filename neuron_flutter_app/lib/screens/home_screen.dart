@@ -6,6 +6,9 @@ import 'dart:math';
 import '../models/reminder.dart';
 import 'notes_render_screen.dart';
 import 'note_organization_screen.dart';
+import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 
 const String _sampleNote = '''# Meeting Notes: Arbitrage Model for Index Basket Trading
 
@@ -58,6 +61,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool _isEdgeSwipe = false;
+  bool _isRecording = false;
   double _startX = 0;
   final List<Reminder> _reminders = [
     Reminder(
@@ -79,6 +83,84 @@ class _HomeScreenState extends State<HomeScreen> {
       time: '14:00', // 2:00 PM
     ),
   ];
+  final _audioRecorder = Record();
+  String? _recordedFilePath;
+
+  @override
+  void initState() {
+    super.initState();
+    _initRecorder();
+  }
+
+  @override
+  void dispose() {
+    _audioRecorder.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initRecorder() async {
+    try {
+      final hasPermission = await _audioRecorder.hasPermission();
+      if (!hasPermission) {
+        print('Microphone permission not granted');
+      }
+    } catch (e) {
+      print('Error initializing recorder: $e');
+    }
+  }
+
+  Future<void> _startRecording() async {
+    try {
+      if (await _audioRecorder.hasPermission()) {
+        // Get the temporary directory
+        final directory = await getTemporaryDirectory();
+        _recordedFilePath = '${directory.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        
+        // Start recording with minimal parameters for version 3.0.4
+        await _audioRecorder.start(
+          path: _recordedFilePath!,
+          encoder: AudioEncoder.AAC,
+          bitRate: 128000,
+          samplingRate: 44100,
+        );
+        
+        setState(() {
+          _isRecording = true;
+        });
+        
+        print('Started recording to: $_recordedFilePath');
+      } else {
+        print('Microphone permission not granted');
+      }
+    } catch (e) {
+      print('Error starting recording: $e');
+      setState(() {
+        _isRecording = false;
+      });
+    }
+  }
+
+  Future<void> _stopRecording() async {
+    try {
+      if (_isRecording) {
+        final path = await _audioRecorder.stop();
+        setState(() {
+          _isRecording = false;
+        });
+        
+        if (path != null) {
+          print('Recording saved to: $path');
+        } else {
+          print('Recording stopped but no file path returned');
+        }
+      }
+    } catch (e) {
+      print('Error stopping recording: $e');
+      setState(() {
+        _isRecording = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -367,17 +449,26 @@ class _HomeScreenState extends State<HomeScreen> {
                           icon: Icons.calendar_today,
                           size: 50,
                           iconSizeMultiplier: 0.5,
+                          onPressed: () {},
                         ),
                         _buildActionButton(
-                          icon: Icons.mic,
+                          icon: _isRecording ? Icons.stop_circle : Icons.mic,
                           size: 70,
                           iconColor: const Color(0xFFE94545),
                           iconSizeMultiplier: 0.6,
+                          onPressed: () async {
+                            if (_isRecording) {
+                              await _stopRecording();
+                            } else {
+                              await _startRecording();
+                            }
+                          },
                         ),
                         _buildActionButton(
                           icon: Icons.map_outlined,
                           size: 50,
                           iconSizeMultiplier: 0.55,
+                          onPressed: () {},
                         ),
                       ],
                     ),
@@ -396,6 +487,7 @@ class _HomeScreenState extends State<HomeScreen> {
     required double size,
     Color? iconColor,
     double iconSizeMultiplier = 0.5, // Default multiplier
+    VoidCallback? onPressed,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
@@ -439,7 +531,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: iconColor ?? Colors.white70,
                   size: size * iconSizeMultiplier,
                 ),
-                onPressed: () {},
+                onPressed: onPressed,
               ),
             ),
           ),
