@@ -6,9 +6,9 @@ class NotesRenderScreen extends StatefulWidget {
   final String initialContent;
 
   const NotesRenderScreen({
-    Key? key,
+    super.key,
     required this.initialContent,
-  }) : super(key: key);
+  });
 
   @override
   State<NotesRenderScreen> createState() => _NotesRenderScreenState();

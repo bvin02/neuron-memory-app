@@ -385,7 +385,7 @@ class _TimeGrid extends StatelessWidget {
               ),
             ),
           );
-        }).toList(),
+        }),
       ],
     );
   }
