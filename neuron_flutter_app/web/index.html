@@ -21,18 +21,54 @@
   <meta name="description" content="A new Flutter project.">
 
   <!-- iOS meta tags & icons -->
-  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="neuron_flutter_app">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
+  <!-- Google Sign-in meta tags -->
+  <meta name="google-signin-client_id" content="255065638939-qtkhr8dm195k2e7qq10u2p1vgp53nu0e.apps.googleusercontent.com">
+
+  <!-- Add the Google Sign-In library -->
+  <script src="https://apis.google.com/js/platform.js" async defer></script>
+
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>neuron_flutter_app</title>
+  <title>Neuron Flutter App</title>
   <link rel="manifest" href="manifest.json">
+
+  <script>
+    // The value below is injected by flutter build, do not touch.
+    const serviceWorkerVersion = null;
+  </script>
+  <!-- This script adds the flutter initialization JS code -->
+  <script src="flutter.js" defer></script>
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    window.addEventListener('load', function(ev) {
+      // Initialize google sign in
+      gapi.load('auth2', function() {
+        gapi.auth2.init({
+          client_id: '255065638939-qtkhr8dm195k2e7qq10u2p1vgp53nu0e.apps.googleusercontent.com',
+          scope: 'https://www.googleapis.com/auth/calendar.readonly',
+          redirect_uri: window.location.origin
+        });
+      });
+
+      // Download main.dart.js
+      _flutter.loader.loadEntrypoint({
+        serviceWorker: {
+          serviceWorkerVersion: serviceWorkerVersion,
+        },
+        onEntrypointLoaded: function(engineInitializer) {
+          engineInitializer.initializeEngine().then(function(appRunner) {
+            appRunner.runApp();
+          });
+        }
+      });
+    });
+  </script>
 </body>
 </html>
