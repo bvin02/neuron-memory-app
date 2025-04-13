@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
+import 'screens/note_organization_screen.dart';
 
 void main() => runApp(const NeuronApp());
 
@@ -34,7 +35,11 @@ class NeuronApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const HomeScreen(),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const HomeScreen(),
+        '/notes': (context) => const NoteOrganizationScreen(),
+      },
     );
   }
 }

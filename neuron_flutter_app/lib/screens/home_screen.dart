@@ -5,6 +5,7 @@ import 'calendar_screen.dart';
 import 'dart:math';
 import '../models/reminder.dart';
 import 'notes_render_screen.dart';
+import 'note_organization_screen.dart';
 
 const String _sampleNote = '''# Meeting Notes: Arbitrage Model for Index Basket Trading
 
@@ -326,7 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         },
                       ),
                       const SizedBox(height: 12),
-                      const NeuronCard(
+                      NeuronCard(
                         title: 'Notes',
                         subtitle: 'Meeting Summary\nProject Ideas\nInterview Notes',
                         blurBackground: true,
@@ -348,6 +349,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             Color(0xFF462D41), // purple
                           ],
                         ),
+                        onTap: (context) {
+                          Navigator.pushNamed(context, '/notes');
+                        },
                       ),
                     ],
                   ),
