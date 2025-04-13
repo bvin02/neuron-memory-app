@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../services/audio_recorder_service.dart';
 import '../services/db.dart';
+import '../services/transcription_service.dart';
 import 'graph_view.dart';
 import 'search_screen.dart';
 
@@ -29,8 +30,10 @@ class _HomeScreenState extends State<HomeScreen> {
   double _startX = 0;
   final List<Reminder> _reminders = [];
   final List<Note> _notes = [];
-  final _audioService = AudioRecorderService();
+  final _transcriptionService = TranscriptionService();
   String? _recordedFilePath;
+  String? _transcribedText;
+  bool _isTranscribing = false;
 
   @override
   void initState() {
@@ -42,53 +45,76 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    _audioService.dispose(); // Dispose AudioService
+    _transcriptionService.dispose();
     super.dispose();
   }
 
   Future<void> _initRecorder() async {
-    await _audioService.initRecorder();
+    await _transcriptionService.initialize();
   }
 
   Future<void> _toggleRecording() async {
     if (_isRecording) {
-      final path = await _audioService.stopRecording();
       setState(() {
-        _isRecording = false;
+        _isTranscribing = true;
       });
       
-      if (path != null) {
-        _recordedFilePath = path;
-        print('Recording saved to: $path');
+      // Stop recording and get transcription
+      final transcription = await _transcriptionService.stopRecordingAndTranscribe();
+      
+      setState(() {
+        _isRecording = false;
+        _isTranscribing = false;
+        _transcribedText = transcription;
+      });
+      
+      if (transcription != null) {
+        _recordedFilePath = _transcriptionService.recordedFilePath;
+        
+        // Create a new note with the transcription
+        final note = Note.create(
+          title: 'Voice Note - ${DateTime.now().toString().substring(0, 16)}',
+          content: transcription,
+          tags: ['voice', 'transcription'],
+        );
+        
+        // Save the note
+        final noteId = await NeuronDatabase.saveNote(note);
+        await _loadNotes();
         
         // Extract just the filename for display
-        final fileName = path.split('/').last;
+        final fileName = _recordedFilePath?.split('/').last ?? '';
         
-        // Show a snackbar with the file path
+        // Show a snackbar with the transcription result
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Recording saved as: $fileName'),
-            backgroundColor: Colors.blue,
+            content: Text('Transcription saved as note'),
+            backgroundColor: Colors.green,
             duration: const Duration(seconds: 3),
             action: SnackBarAction(
-              label: 'OK',
-              onPressed: () {},
+              label: 'View',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => NotesRenderScreen(noteId: noteId),
+                  ),
+                );
+              },
             ),
           ),
         );
-        
-        // Here you could add code to handle the recording (transcribe, etc.)
       } else {
-        print('Recording stopped but no file path returned');
+        print('Transcription failed');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Recording stopped but file not saved'),
-            backgroundColor: Colors.orange,
+            content: Text('Transcription failed'),
+            backgroundColor: Colors.red,
           ),
         );
       }
     } else {
-      final success = await _audioService.startRecording();
+      final success = await _transcriptionService.startRecording();
       if (success) {
         setState(() {
           _isRecording = true;
@@ -97,7 +123,7 @@ class _HomeScreenState extends State<HomeScreen> {
         // Show a snackbar to indicate recording has started
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Recording started'),
+            content: Text('Recording started - speak clearly'),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 2),
           ),
@@ -163,6 +189,13 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Scaffold(
         backgroundColor: Colors.transparent,
+        floatingActionButton: FloatingActionButton(
+          onPressed: _isTranscribing ? null : _toggleRecording,
+          backgroundColor: _isRecording ? Colors.red : (_isTranscribing ? Colors.grey : Colors.blue),
+          child: _isTranscribing 
+            ? const CircularProgressIndicator(color: Colors.white)
+            : Icon(_isRecording ? Icons.stop : Icons.mic),
+        ),
         body: SafeArea(
           bottom: false, // Don't pad the bottom
           child: GestureDetector(
