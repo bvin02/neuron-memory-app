@@ -175,10 +175,26 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                       const SizedBox(height: 24),
-                      const NeuronCard(
+                      NeuronCard(
                         title: 'Calendar',
                         subtitle: '10:00  —  Team Meeting\n11:00  —  Project Update\n2:00   —  Client Call',
                         blurBackground: true,
+                        onTap: (context) {
+                          Navigator.push(
+                            context,
+                            PageRouteBuilder(
+                              pageBuilder: (context, animation, secondaryAnimation) => const CalendarScreen(),
+                              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                const begin = Offset(-1.0, 0.0);
+                                const end = Offset.zero;
+                                const curve = Curves.easeInOut;
+                                var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                                var offsetAnimation = animation.drive(tween);
+                                return SlideTransition(position: offsetAnimation, child: child);
+                              },
+                            ),
+                          );
+                        },
                       ),
                       const SizedBox(height: 12),
                       NeuronCard(
