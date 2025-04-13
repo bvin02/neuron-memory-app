@@ -18,7 +18,36 @@ class NoteModel {
     
     // Load notes
     final notesJson = prefs.getStringList(_storageKey) ?? [];
-    notes = notesJson.map((json) => Note.fromJson(jsonDecode(json))).toList();
+    
+    if (notesJson.isEmpty) {
+      // Add sample notes if no notes exist
+      notes = [
+        Note(
+          id: '1',
+          title: 'Meeting Summary',
+          content: 'Team meeting discussion points...',
+          createdAt: DateTime.now().subtract(const Duration(days: 2)),
+          modifiedAt: DateTime.now().subtract(const Duration(days: 2)),
+        ),
+        Note(
+          id: '2',
+          title: 'Project Ideas',
+          content: 'New project brainstorming...',
+          createdAt: DateTime.now().subtract(const Duration(days: 1)),
+          modifiedAt: DateTime.now().subtract(const Duration(days: 1)),
+        ),
+        Note(
+          id: '3',
+          title: 'Interview Notes',
+          content: 'Candidate evaluation...',
+          createdAt: DateTime.now(),
+          modifiedAt: DateTime.now(),
+        ),
+      ];
+      await saveNotes(); // Save the sample notes
+    } else {
+      notes = notesJson.map((json) => Note.fromJson(jsonDecode(json))).toList();
+    }
     
     // Load custom groups
     final groupsJson = prefs.getStringList(_groupsKey) ?? [];

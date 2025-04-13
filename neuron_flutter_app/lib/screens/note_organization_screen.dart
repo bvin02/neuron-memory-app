@@ -24,8 +24,13 @@ class _NoteOrganizationScreenState extends State<NoteOrganizationScreen> {
   @override
   void initState() {
     super.initState();
-    _loadPreferences();
-    _updateGroups(); // Add immediate update while preferences load
+    _loadInitialData();
+  }
+
+  Future<void> _loadInitialData() async {
+    await _loadPreferences();
+    await _loadNotes();
+    _updateGroups();
   }
 
   Future<void> _loadPreferences() async {
@@ -44,12 +49,11 @@ class _NoteOrganizationScreenState extends State<NoteOrganizationScreen> {
         _isTimeBasedSorting = prefs.getBool(_sortPreferenceKey) ?? true;
       });
     }
-    _loadNotes();
   }
 
   Future<void> _loadNotes() async {
     await _noteModel.loadNotes();
-    _updateGroups();
+    setState(() {}); // Trigger rebuild after notes are loaded
   }
 
   void _updateGroups() {
