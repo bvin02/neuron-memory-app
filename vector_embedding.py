@@ -2,7 +2,6 @@
 from sentence_transformers import SentenceTransformer, util
 import numpy as np
 
-# Step 2: Load the all-mini-lm model
 
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
