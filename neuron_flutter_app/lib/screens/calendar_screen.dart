@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import 'graph_view.dart';
+import '../services/google_calendar_service.dart';
+import 'package:googleapis/calendar/v3.dart' as calendar;
 
 class CalendarEvent {
   final String id;
@@ -18,6 +19,19 @@ class CalendarEvent {
     required this.endTime,
     this.color = const Color(0xFF978BF3),
   });
+
+  factory CalendarEvent.fromGoogleEvent(calendar.Event event) {
+    final start = event.start?.dateTime?.toLocal() ?? DateTime.now();
+    final end = event.end?.dateTime?.toLocal() ?? DateTime.now();
+
+    return CalendarEvent(
+      id: event.id ?? DateTime.now().toString(),
+      title: event.summary ?? 'Untitled Event',
+      description: event.description ?? '',
+      startTime: TimeOfDay(hour: start.hour, minute: start.minute),
+      endTime: TimeOfDay(hour: end.hour, minute: end.minute),
+    );
+  }
 }
 
 class CalendarScreen extends StatefulWidget {
@@ -35,6 +49,88 @@ class _CalendarScreenState extends State<CalendarScreen> {
   final TextEditingController _descriptionController = TextEditingController();
   TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 10, minute: 0);
+  final GoogleCalendarService _calendarService = GoogleCalendarService();
+  bool _isSyncing = false;
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  Future<void> _syncWithGoogleCalendar() async {
+    if (_isSyncing) return;
+
+    setState(() {
+      _isSyncing = true;
+    });
+
+    try {
+      final googleEvents = await _calendarService.fetchEvents();
+      final calendarEvents = googleEvents.map((e) => CalendarEvent.fromGoogleEvent(e)).toList();
+      
+      setState(() {
+        _events.clear();
+        _events.addAll(calendarEvents);
+      });
+    } catch (e) {
+      _showErrorDialog('Failed to sync with Google Calendar');
+    } finally {
+      setState(() {
+        _isSyncing = false;
+      });
+    }
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: const RadialGradient(
+              center: Alignment(1.0, 1.0),
+              radius: 2,
+              colors: [
+                Color(0xFF0F0F17),
+                Color.fromARGB(255, 30, 30, 46),
+                Color.fromARGB(255, 35, 36, 58),
+              ],
+              stops: [0.1, 0.6, 0.9],
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                color: Colors.red,
+                size: 48,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                message,
+                style: const TextStyle(color: Colors.white),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'OK',
+                  style: TextStyle(
+                    color: Color.fromARGB(255, 187, 178, 255),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -119,53 +215,102 @@ class _CalendarScreenState extends State<CalendarScreen> {
         body: SafeArea(
           child: Stack(
             children: [
-              Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.chevron_left, color: Colors.white70, size: 28),
-                              onPressed: () => Navigator.of(context).pop(),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '$dayOfWeek, $month ${now.day}',
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                          ],
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.add, color: Colors.white70),
-                          onPressed: () {
-                            showDialog(
-                              context: context,
-                              builder: (context) => _EventDialog(
-                                titleController: _titleController,
-                                descriptionController: _descriptionController,
-                                startTime: _startTime,
-                                endTime: _endTime,
-                                onStartTimeChanged: (time) => _startTime = time,
-                                onEndTimeChanged: (time) => _endTime = time,
-                                onSave: () {
-                                  _addEvent();
-                                  Navigator.pop(context);
+              GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onHorizontalDragStart: (details) {
+                  _startX = details.globalPosition.dx;
+                  if (details.globalPosition.dx > MediaQuery.of(context).size.width - 50) {
+                    _isEdgeSwipe = true;
+                  } else {
+                    _isEdgeSwipe = false;
+                  }
+                },
+                onHorizontalDragEnd: (details) {
+                  final endX = details.globalPosition.dx;
+                  final distance = _startX - endX;
+                  
+                  if (_isEdgeSwipe && distance > 100) {
+                    Navigator.of(context).pop();
+                  }
+                },
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '$dayOfWeek, $month ${now.day}',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: _isSyncing
+                                    ? const SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+                                        ),
+                                      )
+                                    : const Icon(Icons.sync, color: Colors.white70),
+                                onPressed: _isSyncing ? null : _syncWithGoogleCalendar,
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.add, color: Colors.white70),
+                                onPressed: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) => _EventDialog(
+                                      titleController: _titleController,
+                                      descriptionController: _descriptionController,
+                                      startTime: _startTime,
+                                      endTime: _endTime,
+                                      onStartTimeChanged: (time) => _startTime = time,
+                                      onEndTimeChanged: (time) => _endTime = time,
+                                      onSave: () {
+                                        _addEvent();
+                                        Navigator.pop(context);
+                                      },
+                                    ),
+                                  );
                                 },
                               ),
-                            );
-                          },
-                        ),
-                      ],
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  Expanded(
-                    child: _DayView(events: _events, onEventTap: _editEvent, onEventDelete: _deleteEvent),
-                  ),
-                ],
+                    Expanded(
+                      child: _DayView(events: _events, onEventTap: _editEvent, onEventDelete: _deleteEvent),
+                    ),
+                  ],
+                ),
+              ),
+              // Add a transparent gesture detector on the right edge
+              Positioned(
+                right: 0,
+                top: 0,
+                bottom: 0,
+                width: 50,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onHorizontalDragStart: (details) {
+                    _startX = details.globalPosition.dx;
+                    _isEdgeSwipe = true;
+                  },
+                  onHorizontalDragEnd: (details) {
+                    final endX = details.globalPosition.dx;
+                    final distance = _startX - endX;
+                    
+                    if (_isEdgeSwipe && distance > 100) { // Swipe left from right edge - Exit to Home
+                      Navigator.of(context).pop();
+                    }
+                  },
+                ),
               ),
             ],
           ),
