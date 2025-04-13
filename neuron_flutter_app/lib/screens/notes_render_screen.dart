@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:markdown_widget/markdown_widget.dart' hide MarkdownWidget;
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'dart:ui';
 
@@ -215,77 +216,79 @@ class _NotesRenderScreenState extends State<NotesRenderScreen> {
                                       fontSize: 16,
                                     ),
                                   ),
+                                  onChanged: (value) {
+                                    setState(() {});
+                                  },
                                 ),
                               )
-                            : Markdown(
-                                data: _controller.text,
+                            : Padding(
                                 padding: const EdgeInsets.all(16.0),
-                                selectable: true,
-                                softLineBreak: true,
-                                shrinkWrap: true,
-                                physics: const ClampingScrollPhysics(),
-                                styleSheetTheme: MarkdownStyleSheetBaseTheme.material,
-                                onTapLink: (text, href, title) {
-                                  // Handle link taps if needed
-                                },
-                                styleSheet: MarkdownStyleSheet(
-                                  p: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    height: 1.6,
-                                  ),
-                                  h1: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.bold,
-                                    height: 1.4,
-                                  ),
-                                  h2: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    height: 1.4,
-                                  ),
-                                  h3: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    height: 1.4,
-                                  ),
-                                  listBullet: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 16,
-                                  ),
-                                  listIndent: 24.0,
-                                  blockSpacing: 16.0,
-                                  strong: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  em: TextStyle(
-                                    color: Colors.white.withAlpha(230),
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                  code: TextStyle(
-                                    color: Colors.white,
-                                    backgroundColor: Colors.white.withAlpha(3),
-                                    fontSize: 14,
-                                    fontFamily: 'monospace',
-                                  ),
-                                  codeblockDecoration: BoxDecoration(
-                                    color: Colors.white.withAlpha(3),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  blockquote: TextStyle(
-                                    color: Colors.white.withAlpha(204),
-                                    fontStyle: FontStyle.italic,
-                                    fontSize: 16,
-                                  ),
-                                  horizontalRuleDecoration: BoxDecoration(
-                                    border: Border(
-                                      top: BorderSide(
-                                        color: Colors.white.withAlpha(51),
-                                        width: 1,
+                                child: Markdown(
+                                  data: _controller.text,
+                                  selectable: true,
+                                  softLineBreak: true,
+                                  shrinkWrap: true,
+                                  physics: const ClampingScrollPhysics(),
+                                  styleSheetTheme: MarkdownStyleSheetBaseTheme.material,
+                                  styleSheet: MarkdownStyleSheet(
+                                    p: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      height: 1.6,
+                                    ),
+                                    h1: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.bold,
+                                      height: 1.4,
+                                    ),
+                                    h2: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold,
+                                      height: 1.4,
+                                    ),
+                                    h3: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      height: 1.4,
+                                    ),
+                                    listBullet: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 16,
+                                    ),
+                                    listIndent: 24.0,
+                                    blockSpacing: 16.0,
+                                    strong: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    em: TextStyle(
+                                      color: Colors.white.withAlpha(230),
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                    code: TextStyle(
+                                      color: Colors.white,
+                                      backgroundColor: Colors.white.withAlpha(26),
+                                      fontSize: 14,
+                                      fontFamily: 'monospace',
+                                    ),
+                                    codeblockDecoration: BoxDecoration(
+                                      color: Colors.white.withAlpha(26),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    blockquote: TextStyle(
+                                      color: Colors.white.withAlpha(204),
+                                      fontStyle: FontStyle.italic,
+                                      fontSize: 16,
+                                    ),
+                                    horizontalRuleDecoration: BoxDecoration(
+                                      border: Border(
+                                        top: BorderSide(
+                                          color: Colors.white.withAlpha(51),
+                                          width: 1,
+                                        ),
                                       ),
                                     ),
                                   ),
