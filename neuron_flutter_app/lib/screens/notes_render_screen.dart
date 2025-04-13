@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:markdown_widget/markdown_widget.dart' hide MarkdownWidget;
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'dart:ui';
 
