@@ -13,6 +13,8 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../services/audio_recorder_service.dart';
 import '../services/db.dart';
+import 'graph_view.dart';
+import 'search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -163,240 +165,267 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.transparent,
         body: SafeArea(
           bottom: false, // Don't pad the bottom
-          child: GestureDetector(
-            onHorizontalDragStart: (details) {
-              _startX = details.globalPosition.dx;
-              if (details.globalPosition.dx < 50) {
-                _isEdgeSwipe = true;
-              } else if (details.globalPosition.dx > MediaQuery.of(context).size.width - 50) {
-                _isEdgeSwipe = true;
-              } else {
-                _isEdgeSwipe = false;
-              }
+          child: BottomSwipeDetector(
+            onSwipeUp: () {
+              Navigator.of(context).push(
+                BottomSlideRoute(
+                  page: const GraphViewScreen(),
+                ),
+              );
             },
-            onHorizontalDragEnd: (details) {
-              final endX = details.globalPosition.dx;
-              final distance = _startX - endX;
-              
-              if (_isEdgeSwipe) {
-                if (distance < -100) { // Swipe right from left edge - Enter Calendar
-                  Navigator.of(context).push(
-                    PageRouteBuilder(
-                      pageBuilder: (context, animation, secondaryAnimation) => const CalendarScreen(),
-                      transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                        const begin = Offset(-1.0, 0.0);
-                        const end = Offset.zero;
-                        const curve = Curves.easeInOut;
-                        var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-                        var offsetAnimation = animation.drive(tween);
-                        return SlideTransition(position: offsetAnimation, child: child);
-                      },
-                    ),
-                  );
-                } else if (distance > 100) { // Swipe left from right edge - Enter Reminders
-                  Navigator.of(context).push(
-                    PageRouteBuilder(
-                      pageBuilder: (context, animation, secondaryAnimation) => RemindersScreen(
-                        reminders: _reminders,
-                        onRemindersUpdated: (updatedReminders) {
-                          setState(() {
-                            _reminders.clear();
-                            _reminders.addAll(updatedReminders);
-                          });
+            child: GestureDetector(
+              onHorizontalDragStart: (details) {
+                _startX = details.globalPosition.dx;
+                if (details.globalPosition.dx < 50) {
+                  _isEdgeSwipe = true;
+                } else if (details.globalPosition.dx > MediaQuery.of(context).size.width - 50) {
+                  _isEdgeSwipe = true;
+                } else {
+                  _isEdgeSwipe = false;
+                }
+              },
+              onHorizontalDragEnd: (details) {
+                final endX = details.globalPosition.dx;
+                final distance = _startX - endX;
+                
+                if (_isEdgeSwipe) {
+                  if (distance < -100) { // Swipe right from left edge - Enter Search
+                    Navigator.of(context).push(
+                      PageRouteBuilder(
+                        pageBuilder: (context, animation, secondaryAnimation) => const SearchScreen(),
+                        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                          const begin = Offset(-1.0, 0.0);
+                          const end = Offset.zero;
+                          const curve = Curves.easeInOut;
+                          var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                          var offsetAnimation = animation.drive(tween);
+                          return SlideTransition(position: offsetAnimation, child: child);
                         },
                       ),
-                      transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                        const begin = Offset(1.0, 0.0);
-                        const end = Offset.zero;
-                        const curve = Curves.easeInOut;
-                        var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-                        var offsetAnimation = animation.drive(tween);
-                        return SlideTransition(position: offsetAnimation, child: child);
-                      },
-                    ),
-                  );
+                    );
+                  } else if (distance > 100) { // Swipe left from right edge - Enter Reminders
+                    Navigator.of(context).push(
+                      PageRouteBuilder(
+                        pageBuilder: (context, animation, secondaryAnimation) => RemindersScreen(
+                          reminders: _reminders,
+                          onRemindersUpdated: (updatedReminders) {
+                            setState(() {
+                              _reminders.clear();
+                              _reminders.addAll(updatedReminders);
+                            });
+                          },
+                        ),
+                        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                          const begin = Offset(1.0, 0.0);
+                          const end = Offset.zero;
+                          const curve = Curves.easeInOut;
+                          var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                          var offsetAnimation = animation.drive(tween);
+                          return SlideTransition(position: offsetAnimation, child: child);
+                        },
+                      ),
+                    );
+                  }
                 }
-              }
-            },
-            child: Stack(
-              children: [
-                SingleChildScrollView(
-                  padding: const EdgeInsets.only(
-                    left: 24.0,
-                    right: 24.0,
-                    top: 24.0,
-                    bottom: 120.0, // Adjusted bottom padding
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Neuron',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          Row(
-                            children: [
-                              Container(
-                                margin: const EdgeInsets.only(bottom: 4),
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    boxShadow: const [
-                                      BoxShadow(
-                                        color: Color(0xFF080810),
-                                        blurRadius: 24,
-                                        spreadRadius: -4,
-                                        offset: Offset(-8, 8),
+              },
+              child: Stack(
+                children: [
+                  SingleChildScrollView(
+                    padding: const EdgeInsets.only(
+                      left: 24.0,
+                      right: 24.0,
+                      top: 24.0,
+                      bottom: 120.0, // Adjusted bottom padding
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Neuron',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                            Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.search, color: Colors.white70),
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const SearchScreen(),
                                       ),
-                                    ],
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Container(
-                                      padding: const EdgeInsets.all(1.5),
-                                      decoration: BoxDecoration(
-                                        gradient: const RadialGradient(
-                                          center: Alignment(1.0, -1.0),
-                                          radius: 1.8,
-                                          colors: [
-                                            Color(0xFF41414D),
-                                            Color(0xFF32324b),
-                                          ],
-                                          stops: [0.1, 1.0],
+                                    );
+                                  },
+                                ),
+                                Container(
+                                  margin: const EdgeInsets.only(bottom: 4),
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      boxShadow: const [
+                                        BoxShadow(
+                                          color: Color(0xFF080810),
+                                          blurRadius: 24,
+                                          spreadRadius: -4,
+                                          offset: Offset(-8, 8),
                                         ),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
+                                      ],
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
                                       child: Container(
+                                        padding: const EdgeInsets.all(1.5),
                                         decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(10.5),
-                                          color: const Color(0xFF282837),
+                                          gradient: const RadialGradient(
+                                            center: Alignment(1.0, -1.0),
+                                            radius: 1.8,
+                                            colors: [
+                                              Color(0xFF41414D),
+                                              Color(0xFF32324b),
+                                            ],
+                                            stops: [0.1, 1.0],
+                                          ),
+                                          borderRadius: BorderRadius.circular(12),
                                         ),
-                                        child: IconButton(
-                                          icon: const Icon(Icons.menu, color: Colors.white70),
-                                          onPressed: () {},
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(10.5),
+                                            color: const Color(0xFF282837),
+                                          ),
+                                          child: IconButton(
+                                            icon: const Icon(Icons.menu, color: Colors.white70),
+                                            onPressed: () {},
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      NeuronCard(
-                        title: 'Calendar',
-                        subtitle: '10:00  —  Team Meeting\n11:00  —  Project Update\n2:00   —  Client Call',
-                        blurBackground: true,
-                        onTap: (context) {
-                          Navigator.push(
-                            context,
-                            PageRouteBuilder(
-                              pageBuilder: (context, animation, secondaryAnimation) => const CalendarScreen(),
-                              transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                                const begin = Offset(-1.0, 0.0);
-                                const end = Offset.zero;
-                                const curve = Curves.easeInOut;
-                                var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-                                var offsetAnimation = animation.drive(tween);
-                                return SlideTransition(position: offsetAnimation, child: child);
-                              },
+                              ],
                             ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      NeuronCard(
-                        title: 'Reminders',
-                        subtitle: _reminders.isEmpty 
-                          ? 'No reminders yet'
-                          : '○  ${_reminders[0].title}\n' +
-                            (_reminders.length > 1 ? '○  ${_reminders[1].title}\n' : '') +
-                            (_reminders.length > 2 ? '○  ${_reminders[2].title}' : ''),
-                        blurBackground: true,
-                        onTap: (context) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => RemindersScreen(
-                                reminders: _reminders,
-                                onRemindersUpdated: (updatedReminders) {
-                                  setState(() {
-                                    _reminders.clear();
-                                    _reminders.addAll(updatedReminders);
-                                  });
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        NeuronCard(
+                          title: 'Calendar',
+                          subtitle: '10:00  —  Team Meeting\n11:00  —  Project Update\n2:00   —  Client Call',
+                          blurBackground: true,
+                          onTap: (context) {
+                            Navigator.push(
+                              context,
+                              PageRouteBuilder(
+                                pageBuilder: (context, animation, secondaryAnimation) => const CalendarScreen(),
+                                transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                  const begin = Offset(-1.0, 0.0);
+                                  const end = Offset.zero;
+                                  const curve = Curves.easeInOut;
+                                  var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                                  var offsetAnimation = animation.drive(tween);
+                                  return SlideTransition(position: offsetAnimation, child: child);
                                 },
                               ),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      NeuronCard(
-                        title: 'Notes',
-                        subtitle: _notes.isEmpty 
-                          ? 'No notes yet'
-                          : _notes.take(3).map((note) => note.title ?? 'Untitled Note').join('\n'),
-                        blurBackground: true,
-                        gradientOverlay: const RadialGradient(
-                          center: Alignment(1.0, 0.8),
-                          radius: 2,
-                          colors: [
-                            Color(0xFF192341), // Center
-                            Color(0xFF14141E), // Mid
-                            Color(0xFF2D142D), // Edge
-                          ],
-                          stops: [0.1, 0.5, 0.9],
+                            );
+                          },
                         ),
-                        borderGradient: const RadialGradient(
-                          center: Alignment(1.0, 0),
-                          radius: 1.8,
-                          colors: [
-                            Color(0xFF283750), // blue
-                            Color(0xFF462D41), // purple
-                          ],
+                        const SizedBox(height: 12),
+                        NeuronCard(
+                          title: 'Reminders',
+                          subtitle: _reminders.isEmpty 
+                            ? 'No reminders yet'
+                            : '○  ${_reminders[0].title}\n' +
+                              (_reminders.length > 1 ? '○  ${_reminders[1].title}\n' : '') +
+                              (_reminders.length > 2 ? '○  ${_reminders[2].title}' : ''),
+                          blurBackground: true,
+                          onTap: (context) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => RemindersScreen(
+                                  reminders: _reminders,
+                                  onRemindersUpdated: (updatedReminders) {
+                                    setState(() {
+                                      _reminders.clear();
+                                      _reminders.addAll(updatedReminders);
+                                    });
+                                  },
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                        onTap: (context) {
-                          Navigator.pushNamed(context, '/notes');
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Container(
-                    padding: const EdgeInsets.only(bottom: 25),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildActionButton(
-                          icon: Icons.calendar_today,
-                          size: 50,
-                          iconSizeMultiplier: 0.5,
-                          onPressed: () {},
-                        ),
-                        _buildActionButton(
-                          icon: _isRecording ? Icons.stop_circle : Icons.mic,
-                          size: 70,
-                          iconColor: _isRecording ? const Color(0xFFE94545) : Colors.white70,
-                          iconSizeMultiplier: 0.6,
-                          onPressed: _toggleRecording, // Use our new method
-                        ),
-                        _buildActionButton(
-                          icon: Icons.map_outlined,
-                          size: 50,
-                          iconSizeMultiplier: 0.55,
-                          onPressed: () {},
+                        const SizedBox(height: 12),
+                        NeuronCard(
+                          title: 'Notes',
+                          subtitle: _notes.isEmpty 
+                            ? 'No notes yet'
+                            : _notes.take(3).map((note) => note.title ?? 'Untitled Note').join('\n'),
+                          blurBackground: true,
+                          gradientOverlay: const RadialGradient(
+                            center: Alignment(1.0, 0.8),
+                            radius: 2,
+                            colors: [
+                              Color(0xFF192341), // Center
+                              Color(0xFF14141E), // Mid
+                              Color(0xFF2D142D), // Edge
+                            ],
+                            stops: [0.1, 0.5, 0.9],
+                          ),
+                          borderGradient: const RadialGradient(
+                            center: Alignment(1.0, 0),
+                            radius: 1.8,
+                            colors: [
+                              Color(0xFF283750), // blue
+                              Color(0xFF462D41), // purple
+                            ],
+                          ),
+                          onTap: (context) {
+                            Navigator.pushNamed(context, '/notes');
+                          },
                         ),
                       ],
                     ),
                   ),
-                ),
-              ],
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Container(
+                      padding: const EdgeInsets.only(bottom: 25),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildActionButton(
+                            icon: Icons.calendar_today,
+                            size: 50,
+                            iconSizeMultiplier: 0.5,
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const CalendarScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                          _buildActionButton(
+                            icon: _isRecording ? Icons.stop_circle : Icons.mic,
+                            size: 70,
+                            iconColor: _isRecording ? const Color(0xFFE94545) : Colors.white70,
+                            iconSizeMultiplier: 0.6,
+                            onPressed: _toggleRecording, // Use our new method
+                          ),
+                          _buildActionButton(
+                            icon: Icons.map_outlined,
+                            size: 50,
+                            iconSizeMultiplier: 0.55,
+                            onPressed: () {},
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'graph_view.dart';
 
 class CalendarEvent {
   final String id;
@@ -118,23 +119,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
         body: SafeArea(
           child: Stack(
             children: [
-              GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onHorizontalDragStart: (details) {
-                  _startX = details.globalPosition.dx;
-                  if (details.globalPosition.dx > MediaQuery.of(context).size.width - 50) {
-                    _isEdgeSwipe = true;
-                  } else {
-                    _isEdgeSwipe = false;
-                  }
-                },
-                onHorizontalDragEnd: (details) {
-                  final endX = details.globalPosition.dx;
-                  final distance = _startX - endX;
-                  
-                  if (_isEdgeSwipe && distance > 100) { // Swipe left from right edge - Exit to Home
-                    Navigator.of(context).pop();
-                  }
+              BottomSwipeDetector(
+                onSwipeUp: () {
+                  Navigator.of(context).push(
+                    BottomSlideRoute(
+                      page: const GraphViewScreen(),
+                    ),
+                  );
                 },
                 child: Column(
                   children: [
@@ -143,9 +134,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            '$dayOfWeek, $month ${now.day}',
-                            style: Theme.of(context).textTheme.titleLarge,
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.chevron_left, color: Colors.white70, size: 28),
+                                onPressed: () => Navigator.of(context).pop(),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '$dayOfWeek, $month ${now.day}',
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                            ],
                           ),
                           IconButton(
                             icon: const Icon(Icons.add, color: Colors.white70),
@@ -174,28 +174,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       child: _DayView(events: _events, onEventTap: _editEvent, onEventDelete: _deleteEvent),
                     ),
                   ],
-                ),
-              ),
-              // Add a transparent gesture detector on the right edge
-              Positioned(
-                right: 0,
-                top: 0,
-                bottom: 0,
-                width: 50,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onHorizontalDragStart: (details) {
-                    _startX = details.globalPosition.dx;
-                    _isEdgeSwipe = true;
-                  },
-                  onHorizontalDragEnd: (details) {
-                    final endX = details.globalPosition.dx;
-                    final distance = _startX - endX;
-                    
-                    if (_isEdgeSwipe && distance > 100) { // Swipe left from right edge - Exit to Home
-                      Navigator.of(context).pop();
-                    }
-                  },
                 ),
               ),
             ],

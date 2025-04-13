@@ -4,6 +4,7 @@ import '../models/reminder.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../services/db.dart';
+import 'graph_view.dart';
 
 class RemindersScreen extends StatefulWidget {
   final List<Reminder> reminders;
@@ -458,253 +459,262 @@ class _RemindersScreenState extends State<RemindersScreen> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: SafeArea(
-          child: GestureDetector(
-            onHorizontalDragStart: (details) {
-              _startX = details.globalPosition.dx;
-              if (details.globalPosition.dx < 50) {
-                _isEdgeSwipe = true;
-              } else {
-                _isEdgeSwipe = false;
-              }
-            },
-            onHorizontalDragEnd: (details) {
-              final endX = details.globalPosition.dx;
-              final distance = _startX - endX;
-              
-              if (_isEdgeSwipe && distance < -100) { // Swipe right from left edge - Exit to Home
-                Navigator.of(context).pop();
-              }
-            },
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Reminders',
-                        style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.add, color: Colors.white70),
-                        onPressed: () {
-                          if (_titleController.text.trim().isNotEmpty) {
-                            _addReminder();
-                          } else {
-                            _focusNode.requestFocus();
-                            // Ensure keyboard is shown
-                            Future.delayed(const Duration(milliseconds: 50), () {
-                              if (mounted) {
-                                FocusScope.of(context).requestFocus(_focusNode);
-                              }
-                            });
-                          }
-                        },
-                      ),
-                    ],
-                  ),
+          child: BottomSwipeDetector(
+            onSwipeUp: () {
+              Navigator.of(context).push(
+                BottomSlideRoute(
+                  page: const GraphViewScreen(),
                 ),
-                Expanded(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: Theme(
-                          data: Theme.of(context).copyWith(
-                            canvasColor: Colors.transparent,
-                            primaryColor: Colors.white70,
+              );
+            },
+            child: GestureDetector(
+              onHorizontalDragStart: (details) {
+                _startX = details.globalPosition.dx;
+                if (details.globalPosition.dx < 50) {
+                  _isEdgeSwipe = true;
+                } else {
+                  _isEdgeSwipe = false;
+                }
+              },
+              onHorizontalDragEnd: (details) {
+                final endX = details.globalPosition.dx;
+                final distance = _startX - endX;
+                
+                if (_isEdgeSwipe && distance < -100) { // Swipe right from left edge - Exit to Home
+                  Navigator.of(context).pop();
+                }
+              },
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Reminders',
+                          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
                           ),
-                          child: ReorderableListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                            itemCount: _reminders.length,
-                            buildDefaultDragHandles: true,
-                            onReorderStart: (index) {
-                              HapticFeedback.mediumImpact();
-                            },
-                            proxyDecorator: (child, index, animation) {
-                              return AnimatedBuilder(
-                                animation: animation,
-                                builder: (BuildContext context, Widget? child) {
-                                  final double animValue = Curves.easeInOut.transform(animation.value);
-                                  final double elevation = lerpDouble(0, 6, animValue)!;
-                                  return Material(
-                                    elevation: elevation,
-                                    color: const Color(0xFF1F1F2D),
-                                    shadowColor: Colors.black.withOpacity(0.3),
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: child,
-                                  );
-                                },
-                                child: child,
-                              );
-                            },
-                            onReorder: (oldIndex, newIndex) async {
-                              setState(() {
-                                if (oldIndex < newIndex) {
-                                  newIndex -= 1;
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add, color: Colors.white70),
+                          onPressed: () {
+                            if (_titleController.text.trim().isNotEmpty) {
+                              _addReminder();
+                            } else {
+                              _focusNode.requestFocus();
+                              // Ensure keyboard is shown
+                              Future.delayed(const Duration(milliseconds: 50), () {
+                                if (mounted) {
+                                  FocusScope.of(context).requestFocus(_focusNode);
                                 }
-                                final reminder = _reminders.removeAt(oldIndex);
-                                _reminders.insert(newIndex, reminder);
                               });
-                              
-                              // Update all reminders in database to persist the new order
-                              for (final reminder in _reminders) {
-                                await NeuronDatabase.saveReminder(reminder);
-                              }
-                              
-                              widget.onRemindersUpdated(_reminders);
-                            },
-                            itemBuilder: (context, index) {
-                              final reminder = _reminders[index];
-                              return Dismissible(
-                                key: Key(reminder.id.toString()),
-                                direction: DismissDirection.endToStart,
-                                background: Container(
-                                  color: Colors.red.withAlpha(50),
-                                  alignment: Alignment.centerRight,
-                                  padding: const EdgeInsets.only(right: 24.0),
-                                  child: const Icon(
-                                    Icons.delete,
-                                    color: Colors.white70,
-                                  ),
-                                ),
-                                onDismissed: (direction) {
-                                  _deleteReminder(reminder);
-                                },
-                                child: Container(
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: Theme(
+                            data: Theme.of(context).copyWith(
+                              canvasColor: Colors.transparent,
+                              primaryColor: Colors.white70,
+                            ),
+                            child: ReorderableListView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                              itemCount: _reminders.length,
+                              buildDefaultDragHandles: true,
+                              onReorderStart: (index) {
+                                HapticFeedback.mediumImpact();
+                              },
+                              proxyDecorator: (child, index, animation) {
+                                return AnimatedBuilder(
+                                  animation: animation,
+                                  builder: (BuildContext context, Widget? child) {
+                                    final double animValue = Curves.easeInOut.transform(animation.value);
+                                    final double elevation = lerpDouble(0, 6, animValue)!;
+                                    return Material(
+                                      elevation: elevation,
+                                      color: const Color(0xFF1F1F2D),
+                                      shadowColor: Colors.black.withOpacity(0.3),
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: child,
+                                    );
+                                  },
+                                  child: child,
+                                );
+                              },
+                              onReorder: (oldIndex, newIndex) async {
+                                setState(() {
+                                  if (oldIndex < newIndex) {
+                                    newIndex -= 1;
+                                  }
+                                  final reminder = _reminders.removeAt(oldIndex);
+                                  _reminders.insert(newIndex, reminder);
+                                });
+                                
+                                // Update all reminders in database to persist the new order
+                                for (final reminder in _reminders) {
+                                  await NeuronDatabase.saveReminder(reminder);
+                                }
+                                
+                                widget.onRemindersUpdated(_reminders);
+                              },
+                              itemBuilder: (context, index) {
+                                final reminder = _reminders[index];
+                                return Dismissible(
                                   key: Key(reminder.id.toString()),
-                                  decoration: BoxDecoration(
-                                    border: Border(
-                                      bottom: BorderSide(
-                                        color: Colors.white.withOpacity(0.1),
-                                        width: 1,
-                                      ),
+                                  direction: DismissDirection.endToStart,
+                                  background: Container(
+                                    color: Colors.red.withAlpha(50),
+                                    alignment: Alignment.centerRight,
+                                    padding: const EdgeInsets.only(right: 24.0),
+                                    child: const Icon(
+                                      Icons.delete,
+                                      color: Colors.white70,
                                     ),
                                   ),
-                                  child: ListTile(
-                                    leading: Transform.scale(
-                                      scale: 0.8,
-                                      child: Checkbox(
-                                        value: reminder.isCompleted,
-                                        onChanged: (bool? value) {
-                                          _toggleReminder(reminder);
-                                        },
-                                        shape: const CircleBorder(),
-                                        side: BorderSide(
-                                          color: Colors.white.withOpacity(0.5),
-                                          width: 1.5,
-                                        ),
-                                        checkColor: Colors.white,
-                                        fillColor: MaterialStateProperty.resolveWith<Color>(
-                                          (Set<MaterialState> states) {
-                                            if (states.contains(MaterialState.selected)) {
-                                              return Colors.white.withOpacity(0.2);
-                                            }
-                                            return Colors.transparent;
-                                          },
+                                  onDismissed: (direction) {
+                                    _deleteReminder(reminder);
+                                  },
+                                  child: Container(
+                                    key: Key(reminder.id.toString()),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        bottom: BorderSide(
+                                          color: Colors.white.withOpacity(0.1),
+                                          width: 1,
                                         ),
                                       ),
                                     ),
-                                    title: _editingReminderId == reminder.id
-                                      ? KeyboardListener(
-                                          focusNode: FocusNode(),
-                                          onKeyEvent: (event) {
-                                            if (event.logicalKey == LogicalKeyboardKey.escape) {
-                                              _cancelEdit();
-                                            }
+                                    child: ListTile(
+                                      leading: Transform.scale(
+                                        scale: 0.8,
+                                        child: Checkbox(
+                                          value: reminder.isCompleted,
+                                          onChanged: (bool? value) {
+                                            _toggleReminder(reminder);
                                           },
-                                          child: TextField(
-                                            controller: _editingController,
-                                            focusNode: _editingFocusNode,
-                                            style: const TextStyle(color: Colors.white),
-                                            decoration: InputDecoration(
-                                              border: InputBorder.none,
-                                              hintText: reminder.title ?? 'Untitled Reminder',
-                                              hintStyle: const TextStyle(color: Colors.white54),
-                                            ),
-                                            onSubmitted: (_) => _saveEdit(reminder),
-                                            onEditingComplete: () => _saveEdit(reminder),
-                                            onTapOutside: (_) => _cancelEdit(),
+                                          shape: const CircleBorder(),
+                                          side: BorderSide(
+                                            color: Colors.white.withOpacity(0.5),
+                                            width: 1.5,
                                           ),
-                                        )
-                                      : GestureDetector(
-                                          onTap: () => _startEditing(reminder),
-                                          child: Text(
-                                            reminder.title ?? 'Untitled Reminder',
-                                            style: TextStyle(
-                                              color: reminder.isCompleted ? Colors.white54 : Colors.white,
-                                              fontStyle: reminder.isCompleted ? FontStyle.italic : FontStyle.normal,
-                                            ),
+                                          checkColor: Colors.white,
+                                          fillColor: MaterialStateProperty.resolveWith<Color>(
+                                            (Set<MaterialState> states) {
+                                              if (states.contains(MaterialState.selected)) {
+                                                return Colors.white.withOpacity(0.2);
+                                              }
+                                              return Colors.transparent;
+                                            },
                                           ),
                                         ),
-                                    trailing: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        if (!reminder.isCompleted) ...[
-                                          GestureDetector(
-                                            onTap: () => _selectDate(reminder),
+                                      ),
+                                      title: _editingReminderId == reminder.id
+                                        ? KeyboardListener(
+                                            focusNode: FocusNode(),
+                                            onKeyEvent: (event) {
+                                              if (event.logicalKey == LogicalKeyboardKey.escape) {
+                                                _cancelEdit();
+                                              }
+                                            },
+                                            child: TextField(
+                                              controller: _editingController,
+                                              focusNode: _editingFocusNode,
+                                              style: const TextStyle(color: Colors.white),
+                                              decoration: InputDecoration(
+                                                border: InputBorder.none,
+                                                hintText: reminder.title ?? 'Untitled Reminder',
+                                                hintStyle: const TextStyle(color: Colors.white54),
+                                              ),
+                                              onSubmitted: (_) => _saveEdit(reminder),
+                                              onEditingComplete: () => _saveEdit(reminder),
+                                              onTapOutside: (_) => _cancelEdit(),
+                                            ),
+                                          )
+                                        : GestureDetector(
+                                            onTap: () => _startEditing(reminder),
                                             child: Text(
-                                              '${reminder.dueDate.day}/${reminder.dueDate.month}',
-                                              style: const TextStyle(
-                                                color: Colors.white70,
-                                                fontSize: 12,
+                                              reminder.title ?? 'Untitled Reminder',
+                                              style: TextStyle(
+                                                color: reminder.isCompleted ? Colors.white54 : Colors.white,
+                                                fontStyle: reminder.isCompleted ? FontStyle.italic : FontStyle.normal,
                                               ),
                                             ),
                                           ),
-                                          const SizedBox(width: 8),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
-                                            decoration: BoxDecoration(
-                                              color: Colors.white.withAlpha(2),
-                                              borderRadius: BorderRadius.circular(12),
-                                            ),
-                                            child: GestureDetector(
-                                              onTap: () => _selectTime(reminder),
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (!reminder.isCompleted) ...[
+                                            GestureDetector(
+                                              onTap: () => _selectDate(reminder),
                                               child: Text(
-                                                _formatTimeForDisplay(reminder.dueTime),
+                                                '${reminder.dueDate.day}/${reminder.dueDate.month}',
                                                 style: const TextStyle(
                                                   color: Colors.white70,
                                                   fontSize: 12,
                                                 ),
                                               ),
                                             ),
+                                            const SizedBox(width: 8),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white.withAlpha(2),
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              child: GestureDetector(
+                                                onTap: () => _selectTime(reminder),
+                                                child: Text(
+                                                  _formatTimeForDisplay(reminder.dueTime),
+                                                  style: const TextStyle(
+                                                    color: Colors.white70,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                          ],
+                                          Icon(
+                                            Icons.drag_handle,
+                                            color: Colors.white.withOpacity(0.5),
                                           ),
-                                          const SizedBox(width: 12),
                                         ],
-                                        Icon(
-                                          Icons.drag_handle,
-                                          color: Colors.white.withOpacity(0.5),
-                                        ),
-                                      ],
+                                      ),
                                     ),
                                   ),
-                                ),
-                              );
-                            },
+                                );
+                              },
+                            ),
                           ),
                         ),
-                      ),
-                      Padding(
-                        key: const Key('new_reminder'),
-                        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-                        child: TextField(
-                          controller: _titleController,
-                          focusNode: _focusNode,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: const InputDecoration(
-                            hintText: 'Add a new reminder...',
-                            hintStyle: TextStyle(color: Colors.white54),
-                            border: InputBorder.none,
+                        Padding(
+                          key: const Key('new_reminder'),
+                          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                          child: TextField(
+                            controller: _titleController,
+                            focusNode: _focusNode,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: const InputDecoration(
+                              hintText: 'Add a new reminder...',
+                              hintStyle: TextStyle(color: Colors.white54),
+                              border: InputBorder.none,
+                            ),
+                            onSubmitted: (_) => _addReminder(),
                           ),
-                          onSubmitted: (_) => _addReminder(),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
