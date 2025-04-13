@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../widgets/neuron_card.dart';
 import 'reminders_screen.dart';
 import 'calendar_screen.dart';
@@ -10,8 +9,6 @@ import 'note_organization_screen.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
-import '../services/audio_recorder_service.dart';
-import '../services/db.dart';
 
 const String _sampleNote = '''# Meeting Notes: Arbitrage Model for Index Basket Trading
 
@@ -66,113 +63,103 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isEdgeSwipe = false;
   bool _isRecording = false;
   double _startX = 0;
-  final List<Reminder> _reminders = [];
-  final _audioService = AudioRecorderService(); // Use AudioRecorderService
+  final List<Reminder> _reminders = [
+    Reminder(
+      id: Random().nextInt(1000000).toString(),
+      text: 'Buy groceries',
+      dateTime: DateTime.now(),
+      time: '10:00', // 10:00 AM
+    ),
+    Reminder(
+      id: Random().nextInt(1000000).toString(),
+      text: 'Call Alice',
+      dateTime: DateTime.now(),
+      time: '11:00', // 11:00 AM
+    ),
+    Reminder(
+      id: Random().nextInt(1000000).toString(),
+      text: 'Finish report',
+      dateTime: DateTime.now(),
+      time: '14:00', // 2:00 PM
+    ),
+  ];
+  final _audioRecorder = Record();
   String? _recordedFilePath;
 
   @override
   void initState() {
     super.initState();
     _initRecorder();
-    _loadReminders();
   }
 
   @override
   void dispose() {
-    _audioService.dispose(); // Dispose AudioService
+    _audioRecorder.dispose();
     super.dispose();
   }
 
   Future<void> _initRecorder() async {
-    await _audioService.initRecorder();
+    try {
+      final hasPermission = await _audioRecorder.hasPermission();
+      if (!hasPermission) {
+        print('Microphone permission not granted');
+      }
+    } catch (e) {
+      print('Error initializing recorder: $e');
+    }
   }
 
-  Future<void> _toggleRecording() async {
-    if (_isRecording) {
-      final path = await _audioService.stopRecording();
-      setState(() {
-        _isRecording = false;
-      });
-      
-      if (path != null) {
-        _recordedFilePath = path;
-        print('Recording saved to: $path');
+  Future<void> _startRecording() async {
+    try {
+      if (await _audioRecorder.hasPermission()) {
+        // Get the temporary directory
+        final directory = await getTemporaryDirectory();
+        _recordedFilePath = '${directory.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
         
-        // Extract just the filename for display
-        final fileName = path.split('/').last;
-        
-        // Show a snackbar with the file path
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Recording saved as: $fileName'),
-            backgroundColor: Colors.blue,
-            duration: const Duration(seconds: 3),
-            action: SnackBarAction(
-              label: 'OK',
-              onPressed: () {},
-            ),
-          ),
+        // Start recording with minimal parameters for version 3.0.4
+        await _audioRecorder.start(
+          path: _recordedFilePath!,
+          encoder: AudioEncoder.AAC,
+          bitRate: 128000,
+          samplingRate: 44100,
         );
         
-        // Here you could add code to handle the recording (transcribe, etc.)
-      } else {
-        print('Recording stopped but no file path returned');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Recording stopped but file not saved'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-    } else {
-      final success = await _audioService.startRecording();
-      if (success) {
         setState(() {
           _isRecording = true;
         });
         
-        // Show a snackbar to indicate recording has started
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Recording started'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
+        print('Started recording to: $_recordedFilePath');
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to start recording'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        print('Microphone permission not granted');
       }
+    } catch (e) {
+      print('Error starting recording: $e');
+      setState(() {
+        _isRecording = false;
+      });
     }
   }
 
-  Future<void> _loadReminders() async {
-    final reminders = await NeuronDatabase.getAllReminders();
-    print('Loaded ${reminders.length} reminders from database');
-    setState(() {
-      _reminders.clear();
-      _reminders.addAll(reminders);
-      print('Updated reminders list, now contains ${_reminders.length} items');
-    });
-  }
-
-  void _addReminder(Reminder reminder) async {
-    await NeuronDatabase.saveReminder(reminder);
-    await _loadReminders();
-  }
-
-  void _updateReminder(Reminder reminder) async {
-    await NeuronDatabase.saveReminder(reminder);
-    await _loadReminders();
-  }
-
-  void _deleteReminder(Reminder reminder) async {
-    await NeuronDatabase.deleteReminder(reminder.id);
-    await _loadReminders();
+  Future<void> _stopRecording() async {
+    try {
+      if (_isRecording) {
+        final path = await _audioRecorder.stop();
+        setState(() {
+          _isRecording = false;
+        });
+        
+        if (path != null) {
+          print('Recording saved to: $path');
+        } else {
+          print('Recording stopped but no file path returned');
+        }
+      }
+    } catch (e) {
+      print('Error stopping recording: $e');
+      setState(() {
+        _isRecording = false;
+      });
+    }
   }
 
   @override
@@ -402,11 +389,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 12),
                       NeuronCard(
                         title: 'Reminders',
-                        subtitle: _reminders.isEmpty 
-                          ? 'No reminders yet'
-                          : '○  ${_reminders[0].title}\n' +
-                            (_reminders.length > 1 ? '○  ${_reminders[1].title}\n' : '') +
-                            (_reminders.length > 2 ? '○  ${_reminders[2].title}' : ''),
+                        subtitle: '○  Buy groceries\n○  Call Alice\n○  Finish report',
                         blurBackground: true,
                         onTap: (context) {
                           Navigator.push(
@@ -471,9 +454,15 @@ class _HomeScreenState extends State<HomeScreen> {
                         _buildActionButton(
                           icon: _isRecording ? Icons.stop_circle : Icons.mic,
                           size: 70,
-                          iconColor: _isRecording ? const Color(0xFFE94545) : Colors.white70,
+                          iconColor: const Color(0xFFE94545),
                           iconSizeMultiplier: 0.6,
-                          onPressed: _toggleRecording, // Use our new method
+                          onPressed: () async {
+                            if (_isRecording) {
+                              await _stopRecording();
+                            } else {
+                              await _startRecording();
+                            }
+                          },
                         ),
                         _buildActionButton(
                           icon: Icons.map_outlined,

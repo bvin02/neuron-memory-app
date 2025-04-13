@@ -1,54 +1,35 @@
-import 'package:isar/isar.dart';
-import 'note.dart';
-
-part 'reminder.g.dart';
-
-@collection
 class Reminder {
-  Id id = Isar.autoIncrement;
-  
-  String? title;
-  
-  String? description;
-  
-  @Index()
-  DateTime dueDate = DateTime.now();
-  
-  DateTime? dueTime;
-  
-  @Index()
-  bool isCompleted = false;
-  
-  final notes = IsarLinks<Note>();
-  
-  // Helper method to create a new reminder
-  static Reminder create({
-    required String title,
-    String? description,
-    required DateTime dueDate,
-    DateTime? dueTime,
-    bool isCompleted = false,
-  }) {
-    return Reminder()
-      ..title = title
-      ..description = description
-      ..dueDate = dueDate
-      ..dueTime = dueTime
-      ..isCompleted = isCompleted;
-  }
+  final String id;
+  final String text;
+  final DateTime dateTime;
+  final bool isCompleted;
+  final String? group;
+  final String time; // Format: "hh:mm t" where t is 'a' or 'p'
+
+  Reminder({
+    required this.id,
+    required this.text,
+    required this.dateTime,
+    this.isCompleted = false,
+    this.group,
+    this.time = "11:59p", // Default time
+  });
 
   Reminder copyWith({
-    String? title,
-    DateTime? dueDate,
-    DateTime? dueTime,
+    String? id,
+    String? text,
+    DateTime? dateTime,
     bool? isCompleted,
+    String? group,
+    String? time,
   }) {
-    return Reminder()
-      ..id = id
-      ..title = title ?? this.title
-      ..description = description
-      ..dueDate = dueDate ?? this.dueDate
-      ..dueTime = dueTime ?? this.dueTime
-      ..isCompleted = isCompleted ?? this.isCompleted;
+    return Reminder(
+      id: id ?? this.id,
+      text: text ?? this.text,
+      dateTime: dateTime ?? this.dateTime,
+      isCompleted: isCompleted ?? this.isCompleted,
+      group: group ?? this.group,
+      time: time ?? this.time,
+    );
   }
 } 

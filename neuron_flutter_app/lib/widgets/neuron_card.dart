@@ -91,7 +91,7 @@ class NeuronCard extends StatelessWidget {
                         Text(
                           title,
                           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            color: Colors.white,
+                            fontSize: 28,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
