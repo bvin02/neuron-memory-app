@@ -32,6 +32,11 @@ class CalendarEvent {
       endTime: TimeOfDay(hour: end.hour, minute: end.minute),
     );
   }
+
+  DateTime toDateTime(TimeOfDay time) {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day, time.hour, time.minute);
+  }
 }
 
 class CalendarScreen extends StatefulWidget {
@@ -55,6 +60,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   @override
   void initState() {
     super.initState();
+    _syncWithGoogleCalendar();
   }
 
   Future<void> _syncWithGoogleCalendar() async {
@@ -73,7 +79,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         _events.addAll(calendarEvents);
       });
     } catch (e) {
-      _showErrorDialog('Failed to sync with Google Calendar');
+      _showErrorDialog('Failed to sync with Google Calendar: ${e.toString()}');
     } finally {
       setState(() {
         _isSyncing = false;
@@ -139,37 +145,70 @@ class _CalendarScreenState extends State<CalendarScreen> {
     super.dispose();
   }
 
-  void _addEvent() {
+  Future<void> _addEvent() async {
     if (_titleController.text.trim().isEmpty) return;
 
-    setState(() {
-      _events.add(
-        CalendarEvent(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          title: _titleController.text,
-          description: _descriptionController.text,
-          startTime: _startTime,
-          endTime: _endTime,
-        ),
+    try {
+      final event = CalendarEvent(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        title: _titleController.text,
+        description: _descriptionController.text,
+        startTime: _startTime,
+        endTime: _endTime,
       );
-      _titleController.clear();
-      _descriptionController.clear();
-    });
+
+      // Add to Google Calendar
+      final now = DateTime.now();
+      final start = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        event.startTime.hour,
+        event.startTime.minute,
+      );
+      final end = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        event.endTime.hour,
+        event.endTime.minute,
+      );
+
+      final googleEvent = await _calendarService.addEvent(
+        event.title,
+        event.description,
+        start,
+        end,
+      );
+
+      setState(() {
+        _events.add(CalendarEvent.fromGoogleEvent(googleEvent));
+        _titleController.clear();
+        _descriptionController.clear();
+      });
+    } catch (e) {
+      _showErrorDialog('Failed to add event: ${e.toString()}');
+    }
   }
 
-  void _deleteEvent(CalendarEvent event) {
-    setState(() {
-      _events.remove(event);
-    });
+  Future<void> _deleteEvent(CalendarEvent event) async {
+    try {
+      await _calendarService.deleteEvent(event.id);
+      setState(() {
+        _events.remove(event);
+      });
+    } catch (e) {
+      _showErrorDialog('Failed to delete event: ${e.toString()}');
+    }
   }
 
-  void _editEvent(CalendarEvent event) {
+  Future<void> _editEvent(CalendarEvent event) async {
     _titleController.text = event.title;
     _descriptionController.text = event.description;
     _startTime = event.startTime;
     _endTime = event.endTime;
 
-    showDialog(
+    final result = await showDialog<bool>(
       context: context,
       builder: (context) => _EventDialog(
         titleController: _titleController,
@@ -178,17 +217,52 @@ class _CalendarScreenState extends State<CalendarScreen> {
         endTime: _endTime,
         onStartTimeChanged: (time) => _startTime = time,
         onEndTimeChanged: (time) => _endTime = time,
-        onSave: () {
-          setState(() {
-            event.title = _titleController.text;
-            event.description = _descriptionController.text;
-            event.startTime = _startTime;
-            event.endTime = _endTime;
-          });
-          Navigator.pop(context);
+        onSave: () async {
+          try {
+            final now = DateTime.now();
+            final start = DateTime(
+              now.year,
+              now.month,
+              now.day,
+              _startTime.hour,
+              _startTime.minute,
+            );
+            final end = DateTime(
+              now.year,
+              now.month,
+              now.day,
+              _endTime.hour,
+              _endTime.minute,
+            );
+
+            final updatedGoogleEvent = await _calendarService.updateEvent(
+              event.id,
+              _titleController.text,
+              _descriptionController.text,
+              start,
+              end,
+            );
+
+            setState(() {
+              event.title = _titleController.text;
+              event.description = _descriptionController.text;
+              event.startTime = _startTime;
+              event.endTime = _endTime;
+            });
+
+            Navigator.pop(context, true);
+          } catch (e) {
+            _showErrorDialog('Failed to update event: ${e.toString()}');
+            Navigator.pop(context, false);
+          }
         },
       ),
     );
+
+    if (result == false) {
+      // If update failed, refresh the events list
+      await _syncWithGoogleCalendar();
+    }
   }
 
   @override
@@ -306,7 +380,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     final endX = details.globalPosition.dx;
                     final distance = _startX - endX;
                     
-                    if (_isEdgeSwipe && distance > 100) { // Swipe left from right edge - Exit to Home
+                    if (_isEdgeSwipe && distance > 100) {
                       Navigator.of(context).pop();
                     }
                   },

@@ -39,7 +39,12 @@ dependencies:
     # Database
     isar: ^3.1.0+1
     isar_flutter_libs: ^3.1.0+1 # Contains Isar Core
-
+    google_sign_in: ^6.2.1
+    googleapis: ^12.0.0
+    googleapis_auth: ^1.4.1
+    http: ^1.2.0
+    url_launcher: ^6.2.5
+    flutter_web_auth: ^0.5.0
     # The following adds the Cupertino Icons font to your application.
     # Use with the CupertinoIcons class for iOS style icons.
     cupertino_icons: ^1.0.2
