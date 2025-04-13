@@ -23,6 +23,13 @@ class NeuronDatabase {
       await createSampleNotes();
       print('Created initial sample notes');
     }
+    
+    // Only create sample reminders if there are no reminders
+    final existingReminders = await getAllReminders();
+    if (existingReminders.isEmpty) {
+      await createSampleReminders();
+      print('Created initial sample reminders');
+    }
   }
   
   // ================ Note Operations ================
@@ -404,5 +411,77 @@ User -> UI -> Service Layer -> Database
         .where()
         .sortByUpdatedAtDesc()
         .findFirst();
+  }
+  
+  /// Create sample reminders for testing
+  static Future<void> createSampleReminders() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = today.add(const Duration(days: 1));
+    final nextWeek = today.add(const Duration(days: 7));
+    
+    final sampleReminders = [
+      Reminder.create(
+        title: "Complete project brief",
+        description: "Finalize the project requirements document",
+        dueDate: today,
+        dueTime: DateTime(now.year, now.month, now.day, 17, 0), // 5:00 PM
+      ),
+      
+      Reminder.create(
+        title: "Team meeting",
+        description: "Weekly sprint planning",
+        dueDate: tomorrow,
+        dueTime: DateTime(now.year, now.month, now.day + 1, 10, 0), // 10:00 AM
+      ),
+      
+      Reminder.create(
+        title: "Submit expense report",
+        description: "Include all receipts from business trip",
+        dueDate: tomorrow,
+        dueTime: DateTime(now.year, now.month, now.day + 1, 15, 30), // 3:30 PM
+      ),
+      
+      Reminder.create(
+        title: "Prepare presentation",
+        description: "Create slides for quarterly review",
+        dueDate: today.add(const Duration(days: 3)),
+        dueTime: DateTime(now.year, now.month, now.day + 3, 12, 0), // 12:00 PM
+      ),
+      
+      Reminder.create(
+        title: "Call client",
+        description: "Discuss project timeline adjustments",
+        dueDate: today.add(const Duration(days: 2)),
+        dueTime: DateTime(now.year, now.month, now.day + 2, 14, 0), // 2:00 PM
+      ),
+      
+      Reminder.create(
+        title: "Review code pull requests",
+        description: "Check the team's latest submissions",
+        dueDate: today,
+        dueTime: DateTime(now.year, now.month, now.day, 16, 0), // 4:00 PM
+      ),
+      
+      Reminder.create(
+        title: "Schedule interviews",
+        description: "Coordinate with HR for new position candidates",
+        dueDate: nextWeek,
+        dueTime: DateTime(now.year, now.month, now.day + 7, 11, 0), // 11:00 AM
+      ),
+      
+      Reminder.create(
+        title: "Update documentation",
+        description: "Revise API documentation with recent changes",
+        dueDate: today.add(const Duration(days: 4)),
+        dueTime: DateTime(now.year, now.month, now.day + 4, 13, 0), // 1:00 PM
+      ),
+    ];
+
+    await isar.writeTxn(() async {
+      for (final reminder in sampleReminders) {
+        await isar.reminders.put(reminder);
+      }
+    });
   }
 } 

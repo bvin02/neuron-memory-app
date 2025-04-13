@@ -34,6 +34,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
   void initState() {
     super.initState();
     _reminders = List.from(widget.reminders);
+    _sortReminders(); // Sort reminders on initial load
   }
 
   @override
@@ -49,10 +50,14 @@ class _RemindersScreenState extends State<RemindersScreen> {
     if (_titleController.text.trim().isEmpty) return;
 
     print('Creating new reminder with title: ${_titleController.text}');
+    final now = DateTime.now();
+    // Set due date to today at 23:59
+    final dueDateTime = DateTime(now.year, now.month, now.day, 23, 59);
+    
     final reminder = Reminder.create(
       title: _titleController.text,
-      dueDate: DateTime.now(),
-      dueTime: DateTime.now().add(const Duration(hours: 23, minutes: 59)),
+      dueDate: dueDateTime,
+      dueTime: dueDateTime,
     );
     
     final savedId = await NeuronDatabase.saveReminder(reminder);
@@ -64,6 +69,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
     setState(() {
       _reminders.clear();
       _reminders.addAll(updatedReminders);
+      _sortReminders(); // Ensure reminders are sorted after loading from database
       print('Updated local list with ${_reminders.length} reminders');
     });
     widget.onRemindersUpdated(_reminders);
@@ -83,18 +89,19 @@ class _RemindersScreenState extends State<RemindersScreen> {
       // Remove the reminder from its current position
       _reminders.removeWhere((r) => r.id == reminder.id);
       
-      // Add it back either at the end (if completed) or beginning (if uncompleted)
+      // Separate the reminders into completed and not completed
+      final notCompletedReminders = _reminders.where((r) => !r.isCompleted).toList();
+      final completedReminders = _reminders.where((r) => r.isCompleted).toList();
+      
+      // Add the updated reminder to the appropriate list
       if (updatedReminder.isCompleted) {
-        _reminders.add(updatedReminder); // Add to end
+        completedReminders.add(updatedReminder); // Add to completed list
       } else {
-        // Find the first completed reminder's index or end of list
-        final firstCompletedIndex = _reminders.indexWhere((r) => r.isCompleted);
-        if (firstCompletedIndex == -1) {
-          _reminders.add(updatedReminder); // No completed items, add to end
-        } else {
-          _reminders.insert(firstCompletedIndex, updatedReminder); // Insert before first completed
-        }
+        notCompletedReminders.add(updatedReminder); // Add to not completed list
       }
+      
+      // Rebuild the reminders list with not completed items first, then completed items
+      _reminders = [...notCompletedReminders, ...completedReminders];
     });
     
     // Update all reminders in database to persist the new order
@@ -426,6 +433,13 @@ class _RemindersScreenState extends State<RemindersScreen> {
     });
   }
 
+  // Helper method to sort reminders with completed ones at the bottom
+  void _sortReminders() {
+    final notCompletedReminders = _reminders.where((r) => !r.isCompleted).toList();
+    final completedReminders = _reminders.where((r) => r.isCompleted).toList();
+    _reminders = [...notCompletedReminders, ...completedReminders];
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -481,6 +495,12 @@ class _RemindersScreenState extends State<RemindersScreen> {
                             _addReminder();
                           } else {
                             _focusNode.requestFocus();
+                            // Ensure keyboard is shown
+                            Future.delayed(const Duration(milliseconds: 50), () {
+                              if (mounted) {
+                                FocusScope.of(context).requestFocus(_focusNode);
+                              }
+                            });
                           }
                         },
                       ),

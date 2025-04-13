@@ -291,7 +291,7 @@ class _NoteOrganizationScreenState extends State<NoteOrganizationScreen> {
                           _deleteNote(note);
                         },
                         child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 4.0),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 2.0),
                           title: Text(
                             note.title ?? 'Untitled Note',
                             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
@@ -310,7 +310,7 @@ class _NoteOrganizationScreenState extends State<NoteOrganizationScreen> {
                           },
                         ),
                       )),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 8),
                     ],
                   ],
                 );
