@@ -153,6 +153,7 @@ class BottomSwipeDetector extends StatefulWidget {
 class _BottomSwipeDetectorState extends State<BottomSwipeDetector> {
   double _startY = 0.0;
   bool _isBottomEdge = false;
+  bool _hasTriggered = false;
   
   @override
   Widget build(BuildContext context) {
@@ -163,20 +164,31 @@ class _BottomSwipeDetectorState extends State<BottomSwipeDetector> {
           left: 0,
           right: 0,
           bottom: 0,
-          height: 50, // Detection area at bottom edge
+          height: 80, // Increased detection area (was 50)
           child: GestureDetector(
             behavior: HitTestBehavior.translucent,
             onVerticalDragStart: (details) {
               _startY = details.globalPosition.dy;
               final screenHeight = MediaQuery.of(context).size.height;
-              if (_startY > screenHeight - 50) {
+              if (_startY > screenHeight - 100) { // Increased bottom edge detection zone (was 50)
                 _isBottomEdge = true;
+                _hasTriggered = false;
               } else {
                 _isBottomEdge = false;
               }
             },
+            onVerticalDragUpdate: (details) {
+              // Add sensitivity during dragging
+              if (_isBottomEdge && !_hasTriggered) {
+                final distance = _startY - details.globalPosition.dy;
+                if (distance > 40) { // Detect shorter swipes
+                  _hasTriggered = true;
+                  widget.onSwipeUp();
+                }
+              }
+            },
             onVerticalDragEnd: (details) {
-              if (_isBottomEdge && details.primaryVelocity != null && details.primaryVelocity! < -500) {
+              if (_isBottomEdge && !_hasTriggered && details.primaryVelocity != null && details.primaryVelocity! < -300) { // Lower velocity threshold (was -500)
                 // Swipe up from bottom edge with sufficient velocity
                 widget.onSwipeUp();
               }

@@ -233,6 +233,15 @@ User -> UI -> Service Layer -> Database
     return await isar.notes.where().findAll();
   }
   
+  /// Get the most recent notes
+  static Future<List<Note>> getMostRecentNotes({int limit = 3}) async {
+    return await isar.notes
+        .where()
+        .sortByCreatedAtDesc()
+        .limit(limit)
+        .findAll();
+  }
+  
   /// Delete a note
   static Future<bool> deleteNote(int id) async {
     return await isar.writeTxn(() async {

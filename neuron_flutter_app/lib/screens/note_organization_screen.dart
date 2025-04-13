@@ -134,18 +134,23 @@ class _NoteOrganizationScreenState extends State<NoteOrganizationScreen> {
   }
 
   void _toggleSortingMode() async {
+    // First just toggle the sorting mode
     setState(() {
       _isTimeBasedSorting = !_isTimeBasedSorting;
-      // When switching modes, set expand state based on the mode
+    });
+    
+    // Get the notes and reorganize them
+    final notes = await NeuronDatabase.getAllNotes();
+    _organizeNotes(notes);
+    
+    // Now set the expand state based on the mode
+    setState(() {
       if (_isTimeBasedSorting) {
         _expandedGroups = _groups.map((group) => group.header).toSet();
       } else {
         _expandedGroups.clear();
       }
     });
-    
-    final notes = await NeuronDatabase.getAllNotes();
-    _organizeNotes(notes);
     
     // Save the preference
     final prefs = await SharedPreferences.getInstance();

@@ -119,62 +119,53 @@ class _CalendarScreenState extends State<CalendarScreen> {
         body: SafeArea(
           child: Stack(
             children: [
-              BottomSwipeDetector(
-                onSwipeUp: () {
-                  Navigator.of(context).push(
-                    BottomSlideRoute(
-                      page: const GraphViewScreen(),
-                    ),
-                  );
-                },
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(24.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.chevron_left, color: Colors.white70, size: 28),
-                                onPressed: () => Navigator.of(context).pop(),
+              Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.chevron_left, color: Colors.white70, size: 28),
+                              onPressed: () => Navigator.of(context).pop(),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '$dayOfWeek, $month ${now.day}',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add, color: Colors.white70),
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => _EventDialog(
+                                titleController: _titleController,
+                                descriptionController: _descriptionController,
+                                startTime: _startTime,
+                                endTime: _endTime,
+                                onStartTimeChanged: (time) => _startTime = time,
+                                onEndTimeChanged: (time) => _endTime = time,
+                                onSave: () {
+                                  _addEvent();
+                                  Navigator.pop(context);
+                                },
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                '$dayOfWeek, $month ${now.day}',
-                                style: Theme.of(context).textTheme.titleLarge,
-                              ),
-                            ],
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.add, color: Colors.white70),
-                            onPressed: () {
-                              showDialog(
-                                context: context,
-                                builder: (context) => _EventDialog(
-                                  titleController: _titleController,
-                                  descriptionController: _descriptionController,
-                                  startTime: _startTime,
-                                  endTime: _endTime,
-                                  onStartTimeChanged: (time) => _startTime = time,
-                                  onEndTimeChanged: (time) => _endTime = time,
-                                  onSave: () {
-                                    _addEvent();
-                                    Navigator.pop(context);
-                                  },
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
-                    Expanded(
-                      child: _DayView(events: _events, onEventTap: _editEvent, onEventDelete: _deleteEvent),
-                    ),
-                  ],
-                ),
+                  ),
+                  Expanded(
+                    child: _DayView(events: _events, onEventTap: _editEvent, onEventDelete: _deleteEvent),
+                  ),
+                ],
               ),
             ],
           ),

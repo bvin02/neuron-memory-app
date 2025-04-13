@@ -99,8 +99,8 @@ class NeuronCard extends StatelessWidget {
                         Text(
                           subtitle,
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontSize: 16,
-                            height: 1.6,
+                            fontSize: 18,
+                            height: 2,
                             letterSpacing: 0.1,
                           ),
                         ),
