@@ -116,59 +116,86 @@ class _CalendarScreenState extends State<CalendarScreen> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: SafeArea(
-          child: GestureDetector(
-            onHorizontalDragStart: (details) {
-              _startX = details.globalPosition.dx;
-              if (details.globalPosition.dx < 50) {
-                _isEdgeSwipe = true;
-              } else {
-                _isEdgeSwipe = false;
-              }
-            },
-            onHorizontalDragEnd: (details) {
-              final endX = details.globalPosition.dx;
-              final distance = _startX - endX;
-              
-              if (_isEdgeSwipe && distance > 100) { // Swipe left
-                Navigator.pop(context);
-              }
-            },
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '$dayOfWeek, $month ${now.day}',
-                        style: Theme.of(context).textTheme.titleLarge,
+          child: Stack(
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onHorizontalDragStart: (details) {
+                  _startX = details.globalPosition.dx;
+                  if (details.globalPosition.dx > MediaQuery.of(context).size.width - 50) {
+                    _isEdgeSwipe = true;
+                  } else {
+                    _isEdgeSwipe = false;
+                  }
+                },
+                onHorizontalDragEnd: (details) {
+                  final endX = details.globalPosition.dx;
+                  final distance = _startX - endX;
+                  
+                  if (_isEdgeSwipe && distance > 100) { // Swipe left from right edge - Exit to Home
+                    Navigator.of(context).pop();
+                  }
+                },
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '$dayOfWeek, $month ${now.day}',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.add, color: Colors.white70),
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (context) => _EventDialog(
+                                  titleController: _titleController,
+                                  descriptionController: _descriptionController,
+                                  startTime: _startTime,
+                                  endTime: _endTime,
+                                  onStartTimeChanged: (time) => _startTime = time,
+                                  onEndTimeChanged: (time) => _endTime = time,
+                                  onSave: _addEvent,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.add, color: Colors.white70),
-                        onPressed: () {
-                          showDialog(
-                            context: context,
-                            builder: (context) => _EventDialog(
-                              titleController: _titleController,
-                              descriptionController: _descriptionController,
-                              startTime: _startTime,
-                              endTime: _endTime,
-                              onStartTimeChanged: (time) => _startTime = time,
-                              onEndTimeChanged: (time) => _endTime = time,
-                              onSave: _addEvent,
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+                    ),
+                    Expanded(
+                      child: _DayView(events: _events, onEventTap: _editEvent, onEventDelete: _deleteEvent),
+                    ),
+                  ],
                 ),
-                Expanded(
-                  child: _DayView(events: _events, onEventTap: _editEvent, onEventDelete: _deleteEvent),
+              ),
+              // Add a transparent gesture detector on the right edge
+              Positioned(
+                right: 0,
+                top: 0,
+                bottom: 0,
+                width: 50,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onHorizontalDragStart: (details) {
+                    _startX = details.globalPosition.dx;
+                    _isEdgeSwipe = true;
+                  },
+                  onHorizontalDragEnd: (details) {
+                    final endX = details.globalPosition.dx;
+                    final distance = _startX - endX;
+                    
+                    if (_isEdgeSwipe && distance > 100) { // Swipe left from right edge - Exit to Home
+                      Navigator.of(context).pop();
+                    }
+                  },
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

@@ -71,9 +71,8 @@ class _HomeScreenState extends State<HomeScreen> {
               final distance = _startX - endX;
               
               if (_isEdgeSwipe) {
-                if (distance < -100) { // Swipe right
-                  Navigator.push(
-                    context,
+                if (distance < -100) { // Swipe right from left edge - Enter Calendar
+                  Navigator.of(context).push(
                     PageRouteBuilder(
                       pageBuilder: (context, animation, secondaryAnimation) => const CalendarScreen(),
                       transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -86,9 +85,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                     ),
                   );
-                } else if (distance > 100) { // Swipe left
-                  Navigator.push(
-                    context,
+                } else if (distance > 100) { // Swipe left from right edge - Enter Reminders
+                  Navigator.of(context).push(
                     PageRouteBuilder(
                       pageBuilder: (context, animation, secondaryAnimation) => RemindersScreen(
                         reminders: _reminders,
