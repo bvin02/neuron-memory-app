@@ -22,9 +22,9 @@ class RemindersScreen extends StatefulWidget {
 class _RemindersScreenState extends State<RemindersScreen> {
   late List<Reminder> _reminders;
   final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _editingController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
-  final TextEditingController _dateController = TextEditingController();
-  final FocusNode _dateFocusNode = FocusNode();
+  final FocusNode _editingFocusNode = FocusNode();
   int? _editingReminderId;
   String? _originalDate;
   double _startX = 0.0;
@@ -40,8 +40,8 @@ class _RemindersScreenState extends State<RemindersScreen> {
   void dispose() {
     _titleController.dispose();
     _focusNode.dispose();
-    _dateController.dispose();
-    _dateFocusNode.dispose();
+    _editingController.dispose();
+    _editingFocusNode.dispose();
     super.dispose();
   }
 
@@ -80,14 +80,28 @@ class _RemindersScreenState extends State<RemindersScreen> {
     print('Saved updated reminder to database');
     
     setState(() {
-      final index = _reminders.indexWhere((r) => r.id == reminder.id);
-      if (index != -1) {
-        _reminders[index] = updatedReminder;
-        print('Updated reminder in local list at index: $index');
+      // Remove the reminder from its current position
+      _reminders.removeWhere((r) => r.id == reminder.id);
+      
+      // Add it back either at the end (if completed) or beginning (if uncompleted)
+      if (updatedReminder.isCompleted) {
+        _reminders.add(updatedReminder); // Add to end
       } else {
-        print('Warning: Could not find reminder with id ${reminder.id} in local list');
+        // Find the first completed reminder's index or end of list
+        final firstCompletedIndex = _reminders.indexWhere((r) => r.isCompleted);
+        if (firstCompletedIndex == -1) {
+          _reminders.add(updatedReminder); // No completed items, add to end
+        } else {
+          _reminders.insert(firstCompletedIndex, updatedReminder); // Insert before first completed
+        }
       }
     });
+    
+    // Update all reminders in database to persist the new order
+    for (final r in _reminders) {
+      await NeuronDatabase.saveReminder(r);
+    }
+    
     widget.onRemindersUpdated(_reminders);
     print('Notified parent of reminders update');
   }
@@ -137,10 +151,11 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 1),
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
                   constraints: const BoxConstraints(
-                    maxHeight: 500,
+                    maxHeight: 460,
                     maxWidth: 350,
+                    minHeight: 400,
                   ),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(22.5),
@@ -155,13 +170,57 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       stops: [0.1, 0.6, 0.9],
                     ),
                   ),
-                  child: CalendarDatePicker(
-                    initialDate: reminder.dueDate,
-                    firstDate: DateTime(2000),
-                    lastDate: DateTime(2100),
-                    onDateChanged: (date) {
-                      Navigator.of(context).pop(date);
-                    },
+                  child: Theme(
+                    data: Theme.of(context).copyWith(
+                      timePickerTheme: TimePickerThemeData(
+                        backgroundColor: Colors.transparent,
+                        hourMinuteShape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: const BorderSide(color: Colors.white24, width: 1),
+                        ),
+                        dayPeriodShape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: const BorderSide(color: Colors.white24, width: 1),
+                        ),
+                        dayPeriodColor: Colors.transparent,
+                        dayPeriodTextColor: Colors.white70,
+                        dayPeriodBorderSide: const BorderSide(color: Colors.white24),
+                        hourMinuteColor: MaterialStateColor.resolveWith((states) =>
+                          states.contains(MaterialState.selected)
+                              ? Colors.white24
+                              : Colors.transparent),
+                        hourMinuteTextColor: MaterialStateColor.resolveWith((states) =>
+                          states.contains(MaterialState.selected)
+                              ? Colors.white
+                              : Colors.white70),
+                        dialHandColor: Colors.white70,
+                        dialBackgroundColor: Colors.white10,
+                        dialTextColor: MaterialStateColor.resolveWith((states) =>
+                          states.contains(MaterialState.selected)
+                              ? Colors.black
+                              : Colors.white70),
+                        entryModeIconColor: Colors.transparent,
+                        helpTextStyle: const TextStyle(color: Colors.transparent, fontSize: 0),
+                      ),
+                      iconTheme: const IconThemeData(
+                        color: Colors.transparent,
+                        opacity: 0,
+                        size: 0,
+                      ),
+                      textButtonTheme: TextButtonThemeData(
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white70,
+                        ),
+                      ),
+                    ),
+                    child: CalendarDatePicker(
+                      initialDate: reminder.dueDate,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2100),
+                      onDateChanged: (date) {
+                        Navigator.of(context).pop(date);
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -228,10 +287,11 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 1),
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
                   constraints: const BoxConstraints(
-                    maxHeight: 500,
-                    maxWidth: 350,
+                    maxHeight: 460,
+                    maxWidth: 400,
+                    minHeight: 400,
                   ),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(22.5),
@@ -275,7 +335,13 @@ class _RemindersScreenState extends State<RemindersScreen> {
                           states.contains(MaterialState.selected)
                               ? Colors.black
                               : Colors.white70),
-                        entryModeIconColor: Colors.white70,
+                        entryModeIconColor: Colors.transparent,
+                        helpTextStyle: const TextStyle(color: Colors.transparent, fontSize: 0),
+                      ),
+                      iconTheme: const IconThemeData(
+                        color: Colors.transparent,
+                        opacity: 0,
+                        size: 0,
                       ),
                       textButtonTheme: TextButtonThemeData(
                         style: TextButton.styleFrom(
@@ -285,6 +351,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
                     ),
                     child: TimePickerDialog(
                       initialTime: initialTime,
+                      initialEntryMode: TimePickerEntryMode.dial,
+                      cancelText: 'Cancel',
+                      confirmText: 'OK',
+                      helpText: '',
                     ),
                   ),
                 ),
@@ -318,6 +388,42 @@ class _RemindersScreenState extends State<RemindersScreen> {
     final int hour = timeOfDay.hour > 12 ? timeOfDay.hour - 12 : (timeOfDay.hour == 0 ? 12 : timeOfDay.hour);
     final String minute = timeOfDay.minute.toString().padLeft(2, '0');
     return '$hour:$minute$period';
+  }
+
+  void _startEditing(Reminder reminder) {
+    setState(() {
+      _editingReminderId = reminder.id;
+      _editingController.text = reminder.title ?? '';
+    });
+    _editingFocusNode.requestFocus();
+  }
+
+  void _saveEdit(Reminder reminder) async {
+    if (_editingController.text.trim().isEmpty) {
+      _cancelEdit();
+      return;
+    }
+    
+    final updatedReminder = reminder.copyWith(
+      title: _editingController.text.trim(),
+    );
+    await NeuronDatabase.saveReminder(updatedReminder);
+    
+    setState(() {
+      final index = _reminders.indexWhere((r) => r.id == reminder.id);
+      if (index != -1) {
+        _reminders[index] = updatedReminder;
+      }
+      _editingReminderId = null;
+    });
+    widget.onRemindersUpdated(_reminders);
+  }
+
+  void _cancelEdit() {
+    setState(() {
+      _editingReminderId = null;
+      _editingController.clear();
+    });
   }
 
   @override
@@ -393,7 +499,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                           child: ReorderableListView.builder(
                             padding: const EdgeInsets.symmetric(horizontal: 24.0),
                             itemCount: _reminders.length,
-                            buildDefaultDragHandles: false,
+                            buildDefaultDragHandles: true,
                             onReorderStart: (index) {
                               HapticFeedback.mediumImpact();
                             },
@@ -414,103 +520,144 @@ class _RemindersScreenState extends State<RemindersScreen> {
                                 child: child,
                               );
                             },
-                            onReorder: (oldIndex, newIndex) {
+                            onReorder: (oldIndex, newIndex) async {
                               setState(() {
                                 if (oldIndex < newIndex) {
                                   newIndex -= 1;
                                 }
-                                final item = _reminders.removeAt(oldIndex);
-                                _reminders.insert(newIndex, item);
-                                widget.onRemindersUpdated(_reminders);
-                                HapticFeedback.lightImpact();
+                                final reminder = _reminders.removeAt(oldIndex);
+                                _reminders.insert(newIndex, reminder);
                               });
+                              
+                              // Update all reminders in database to persist the new order
+                              for (final reminder in _reminders) {
+                                await NeuronDatabase.saveReminder(reminder);
+                              }
+                              
+                              widget.onRemindersUpdated(_reminders);
                             },
                             itemBuilder: (context, index) {
                               final reminder = _reminders[index];
                               return Dismissible(
-                                key: Key('reminder-${index}'),
-                                background: Container(
-                                  alignment: Alignment.centerRight,
-                                  padding: const EdgeInsets.only(right: 20.0),
-                                  color: Colors.red,
-                                  child: const Icon(Icons.delete, color: Colors.white),
-                                ),
+                                key: Key(reminder.id.toString()),
                                 direction: DismissDirection.endToStart,
-                                onDismissed: (_) => _deleteReminder(reminder),
-                                child: ReorderableDragStartListener(
-                                  index: index,
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(12),
+                                background: Container(
+                                  color: Colors.red.withAlpha(50),
+                                  alignment: Alignment.centerRight,
+                                  padding: const EdgeInsets.only(right: 24.0),
+                                  child: const Icon(
+                                    Icons.delete,
+                                    color: Colors.white70,
+                                  ),
+                                ),
+                                onDismissed: (direction) {
+                                  _deleteReminder(reminder);
+                                },
+                                child: Container(
+                                  key: Key(reminder.id.toString()),
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: Colors.white.withOpacity(0.1),
+                                        width: 1,
+                                      ),
                                     ),
-                                    margin: const EdgeInsets.symmetric(vertical: 4),
-                                    child: ListTile(
-                                      leading: Checkbox(
-                                        key: Key('checkbox-${reminder.id}'),
+                                  ),
+                                  child: ListTile(
+                                    leading: Transform.scale(
+                                      scale: 0.8,
+                                      child: Checkbox(
                                         value: reminder.isCompleted,
                                         onChanged: (bool? value) {
-                                          if (value != null) {
-                                            _toggleReminder(reminder);
-                                          }
+                                          _toggleReminder(reminder);
                                         },
-                                        activeColor: Colors.white70,
-                                        checkColor: Colors.black,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        side: const BorderSide(
-                                          color: Colors.white70,
+                                        shape: const CircleBorder(),
+                                        side: BorderSide(
+                                          color: Colors.white.withOpacity(0.5),
                                           width: 1.5,
                                         ),
-                                      ),
-                                      title: Text(
-                                        reminder.title ?? 'Untitled Reminder',
-                                        style: TextStyle(
-                                          color: reminder.isCompleted ? Colors.white54 : Colors.white,
-                                          fontStyle: reminder.isCompleted ? FontStyle.italic : FontStyle.normal,
+                                        checkColor: Colors.white,
+                                        fillColor: MaterialStateProperty.resolveWith<Color>(
+                                          (Set<MaterialState> states) {
+                                            if (states.contains(MaterialState.selected)) {
+                                              return Colors.white.withOpacity(0.2);
+                                            }
+                                            return Colors.transparent;
+                                          },
                                         ),
                                       ),
-                                      trailing: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          if (!reminder.isCompleted) ...[
-                                            GestureDetector(
-                                              onTap: () => _selectDate(reminder),
+                                    ),
+                                    title: _editingReminderId == reminder.id
+                                      ? KeyboardListener(
+                                          focusNode: FocusNode(),
+                                          onKeyEvent: (event) {
+                                            if (event.logicalKey == LogicalKeyboardKey.escape) {
+                                              _cancelEdit();
+                                            }
+                                          },
+                                          child: TextField(
+                                            controller: _editingController,
+                                            focusNode: _editingFocusNode,
+                                            style: const TextStyle(color: Colors.white),
+                                            decoration: InputDecoration(
+                                              border: InputBorder.none,
+                                              hintText: reminder.title ?? 'Untitled Reminder',
+                                              hintStyle: const TextStyle(color: Colors.white54),
+                                            ),
+                                            onSubmitted: (_) => _saveEdit(reminder),
+                                            onEditingComplete: () => _saveEdit(reminder),
+                                            onTapOutside: (_) => _cancelEdit(),
+                                          ),
+                                        )
+                                      : GestureDetector(
+                                          onTap: () => _startEditing(reminder),
+                                          child: Text(
+                                            reminder.title ?? 'Untitled Reminder',
+                                            style: TextStyle(
+                                              color: reminder.isCompleted ? Colors.white54 : Colors.white,
+                                              fontStyle: reminder.isCompleted ? FontStyle.italic : FontStyle.normal,
+                                            ),
+                                          ),
+                                        ),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (!reminder.isCompleted) ...[
+                                          GestureDetector(
+                                            onTap: () => _selectDate(reminder),
+                                            child: Text(
+                                              '${reminder.dueDate.day}/${reminder.dueDate.month}',
+                                              style: const TextStyle(
+                                                color: Colors.white70,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white.withAlpha(2),
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: GestureDetector(
+                                              onTap: () => _selectTime(reminder),
                                               child: Text(
-                                                '${reminder.dueDate.day}/${reminder.dueDate.month}',
+                                                _formatTimeForDisplay(reminder.dueTime),
                                                 style: const TextStyle(
                                                   color: Colors.white70,
                                                   fontSize: 12,
                                                 ),
                                               ),
                                             ),
-                                            const SizedBox(width: 8),
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
-                                              decoration: BoxDecoration(
-                                                color: Colors.white.withAlpha(2),
-                                                borderRadius: BorderRadius.circular(12),
-                                              ),
-                                              child: GestureDetector(
-                                                onTap: () => _selectTime(reminder),
-                                                child: Text(
-                                                  _formatTimeForDisplay(reminder.dueTime),
-                                                  style: const TextStyle(
-                                                    color: Colors.white70,
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                          ],
-                                          Icon(
-                                            Icons.drag_handle,
-                                            color: Colors.white.withOpacity(0.5),
                                           ),
+                                          const SizedBox(width: 12),
                                         ],
-                                      ),
+                                        Icon(
+                                          Icons.drag_handle,
+                                          color: Colors.white.withOpacity(0.5),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),

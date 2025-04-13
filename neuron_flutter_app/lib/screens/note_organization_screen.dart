@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
-import '../models/note_model.dart';
+import '../services/db.dart';
+import '../models/note.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'notes_render_screen.dart';
 
-class _DragTarget {
-  final Note note;
-  final bool isHeader;
-  _DragTarget(this.note, {this.isHeader = false});
+class NoteGroup {
+  String header;
+  List<Note> notes;
+  bool isCustom;
+
+  NoteGroup({
+    required this.header,
+    required this.notes,
+    this.isCustom = false,
+  });
 }
 
 class NoteOrganizationScreen extends StatefulWidget {
@@ -18,8 +26,8 @@ class NoteOrganizationScreen extends StatefulWidget {
 class _NoteOrganizationScreenState extends State<NoteOrganizationScreen> {
   static const String _sortPreferenceKey = 'note_sort_preference';
   bool _isTimeBasedSorting = true;
-  final _noteModel = NoteModel();
   List<NoteGroup> _groups = [];
+  Set<String> _expandedGroups = {};
 
   @override
   void initState() {
@@ -30,7 +38,10 @@ class _NoteOrganizationScreenState extends State<NoteOrganizationScreen> {
   Future<void> _loadInitialData() async {
     await _loadPreferences();
     await _loadNotes();
-    _updateGroups();
+    // Initialize all groups as expanded by default
+    setState(() {
+      _expandedGroups = _groups.map((group) => group.header).toSet();
+    });
   }
 
   Future<void> _loadPreferences() async {
@@ -38,13 +49,11 @@ class _NoteOrganizationScreenState extends State<NoteOrganizationScreen> {
     final hasVisitedBefore = prefs.getBool('has_visited_notes') ?? false;
     
     if (!hasVisitedBefore) {
-      // First visit - set to time view
       await prefs.setBool('has_visited_notes', true);
       setState(() {
         _isTimeBasedSorting = true;
       });
     } else {
-      // Subsequent visits - load last preference
       setState(() {
         _isTimeBasedSorting = prefs.getBool(_sortPreferenceKey) ?? true;
       });
@@ -52,36 +61,23 @@ class _NoteOrganizationScreenState extends State<NoteOrganizationScreen> {
   }
 
   Future<void> _loadNotes() async {
-    await _noteModel.loadNotes();
-    setState(() {}); // Trigger rebuild after notes are loaded
+    final notes = await NeuronDatabase.getAllNotes();
+    _organizeNotes(notes);
   }
 
-  void _updateGroups() {
+  void _organizeNotes(List<Note> notes) {
     if (_isTimeBasedSorting) {
-      _organizeByDate();
+      _organizeByDate(notes);
     } else {
-      _organizeByCustomGroups();
+      _organizeByTags(notes);
     }
   }
 
-  void _organizeByDate() {
+  void _organizeByDate(List<Note> notes) {
     final groupedNotes = <String, List<Note>>{};
     
-    // Get all notes from both the main list and custom groups
-    final allNotes = [..._noteModel.notes];
-    for (final group in _noteModel.customGroups.values) {
-      allNotes.addAll(group.notes);
-    }
-    
-    // Remove duplicates based on note ID
-    final uniqueNotes = allNotes.fold<Map<String, Note>>({}, (map, note) {
-      map[note.id] = note;
-      return map;
-    }).values.toList();
-
-    // Group by date
-    for (final note in uniqueNotes) {
-      final dateStr = _formatDate(note.modifiedAt);
+    for (final note in notes) {
+      final dateStr = _formatDate(note.createdAt);
       groupedNotes.putIfAbsent(dateStr, () => []).add(note);
     }
 
@@ -89,33 +85,46 @@ class _NoteOrganizationScreenState extends State<NoteOrganizationScreen> {
       _groups = groupedNotes.entries
           .map((e) => NoteGroup(header: e.key, notes: e.value))
           .toList()
-        ..sort((a, b) => b.notes.first.modifiedAt.compareTo(a.notes.first.modifiedAt));
+        ..sort((a, b) => b.notes.first.createdAt.compareTo(a.notes.first.createdAt));
     });
   }
 
-  void _organizeByCustomGroups() {
-    // Get all notes that aren't in custom groups
-    final allNotes = [..._noteModel.notes];
-    final groupedNoteIds = _noteModel.customGroups.values
-        .expand((group) => group.notes)
-        .map((note) => note.id)
-        .toSet();
+  void _organizeByTags(List<Note> notes) {
+    final groupedNotes = <String, List<Note>>{};
     
-    final ungroupedNotes = allNotes.where((note) => !groupedNoteIds.contains(note.id)).toList();
-    
+    // Group by tags
+    for (final note in notes) {
+      if (note.tags.isEmpty) {
+        groupedNotes.putIfAbsent('Untagged', () => []).add(note);
+      } else {
+        for (final tag in note.tags) {
+          groupedNotes.putIfAbsent(tag, () => []).add(note);
+        }
+      }
+    }
+
     setState(() {
-      _groups = [
-        ..._noteModel.customGroups.values,
-        if (ungroupedNotes.isNotEmpty)
-          NoteGroup(header: 'Ungrouped', notes: ungroupedNotes),
-      ];
+      _groups = groupedNotes.entries
+          .map((e) => NoteGroup(
+                header: e.key,
+                notes: e.value,
+                isCustom: e.key != 'Untagged',
+              ))
+          .toList()
+        ..sort((a, b) {
+          // Always put 'Untagged' at the end
+          if (a.header == 'Untagged') return 1;
+          if (b.header == 'Untagged') return -1;
+          // Case-insensitive alphabetical sort for other tags
+          return a.header.toLowerCase().compareTo(b.header.toLowerCase());
+        });
     });
   }
 
   String _formatDate(DateTime date) {
     final months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
@@ -123,298 +132,184 @@ class _NoteOrganizationScreenState extends State<NoteOrganizationScreen> {
   void _toggleSortingMode() async {
     setState(() {
       _isTimeBasedSorting = !_isTimeBasedSorting;
-      _updateGroups();
     });
+    final notes = await NeuronDatabase.getAllNotes();
+    _organizeNotes(notes);
+    
     // Save the preference
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_sortPreferenceKey, _isTimeBasedSorting);
   }
 
-  Future<void> _createCustomGroup(Note sourceNote, Note targetNote) async {
-    final groupName = await showDialog<String>(
-      context: context,
-      builder: (context) => _CreateGroupDialog(),
-    );
-
-    if (groupName != null && groupName.isNotEmpty) {
-      final groupId = 'group_${DateTime.now().millisecondsSinceEpoch}';
-      _noteModel.createCustomGroup(groupId, groupName, [sourceNote, targetNote]);
-      _updateGroups();
-    }
-  }
-
-  void _addToGroup(Note note, String groupId) {
-    if (_noteModel.customGroups.containsKey(groupId)) {
-      note.customGroupId = groupId;
-      _noteModel.customGroups[groupId]!.notes.add(note);
-      _noteModel.saveNotes();
-      _updateGroups();
-    }
-  }
-
-  void _removeFromGroup(Note note) {
-    final groupId = note.customGroupId;
-    if (groupId != null) {
-      note.customGroupId = null;
-      _noteModel.customGroups[groupId]?.notes.remove(note);
-      if (_noteModel.customGroups[groupId]?.notes.isEmpty ?? false) {
-        _noteModel.customGroups.remove(groupId);
+  void _toggleGroup(String header) {
+    setState(() {
+      if (_expandedGroups.contains(header)) {
+        _expandedGroups.remove(header);
+      } else {
+        _expandedGroups.add(header);
       }
-      _noteModel.saveNotes();
-      _updateGroups();
-    }
+    });
+  }
+
+  void _expandAll() {
+    setState(() {
+      _expandedGroups = _groups.map((group) => group.header).toSet();
+    });
+  }
+
+  void _collapseAll() {
+    setState(() {
+      _expandedGroups.clear();
+    });
+  }
+
+  Future<void> _deleteNote(Note note) async {
+    await NeuronDatabase.deleteNote(note.id);
+    await _loadNotes(); // This will reorganize groups and remove empty ones
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF1F1F2D),
       appBar: AppBar(
-        title: const Text('Notes'),
+        backgroundColor: Colors.transparent,
+        title: Text(
+          'Notes',
+          style: Theme.of(context).textTheme.headlineLarge,
+        ),
         actions: [
           IconButton(
-            icon: Icon(_isTimeBasedSorting ? Icons.access_time : Icons.drag_handle),
+            icon: Icon(
+              _isTimeBasedSorting ? Icons.access_time : Icons.local_offer,
+              color: Colors.white70,
+            ),
             onPressed: _toggleSortingMode,
-            tooltip: _isTimeBasedSorting ? 'Switch to Custom Order' : 'Switch to Time-Based',
+            tooltip: _isTimeBasedSorting ? 'Switch to Tags' : 'Switch to Time-Based',
           ),
         ],
       ),
-      body: _isTimeBasedSorting ? _buildTimeBasedList() : _buildDraggableList(),
-    );
-  }
-
-  Widget _buildTimeBasedList() {
-    return ListView.builder(
-      itemCount: _groups.length,
-      itemBuilder: (context, groupIndex) {
-        final group = _groups[groupIndex];
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                group.header,
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
+      body: Column(
+        children: [
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24.0, 8.0, 24.0, 16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton(
+                  onPressed: _expandAll,
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    'Expand All',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _collapseAll,
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    'Collapse All',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            ...group.notes.map((note) => _buildNoteButton(note)),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildDraggableList() {
-    return ReorderableListView.builder(
-      itemCount: _groups.length,
-      onReorder: (oldIndex, newIndex) {
-        if (oldIndex < newIndex) {
-          newIndex -= 1;
-        }
-        final group = _groups.removeAt(oldIndex);
-        _groups.insert(newIndex, group);
-        _noteModel.saveNotes();
-      },
-      itemBuilder: (context, groupIndex) {
-        final group = _groups[groupIndex];
-        return Column(
-          key: ValueKey('group_$groupIndex'),
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (group.isCustom)
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              itemCount: _groups.length,
+              itemBuilder: (context, groupIndex) {
+                final group = _groups[groupIndex];
+                final isExpanded = _expandedGroups.contains(group.header);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        group.header,
-                        style: Theme.of(context).textTheme.headlineMedium,
+                    InkWell(
+                      onTap: () => _toggleGroup(group.header),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 8.0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                group.header,
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  color: group.isCustom 
+                                    ? Colors.white70 
+                                    : const Color(0xFFE0E7FF),
+                                  fontSize: 18,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                              color: const Color(0xFFE0E7FF),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.edit),
-                      onPressed: () async {
-                        final newName = await showDialog<String>(
-                          context: context,
-                          builder: (context) => _CreateGroupDialog(initialName: group.header),
-                        );
-                        if (newName != null && newName.isNotEmpty) {
-                          setState(() {
-                            group.header = newName;
-                            _noteModel.saveNotes();
-                          });
-                        }
-                      },
-                    ),
+                    if (isExpanded) ...[
+                      ...group.notes.map((note) => Dismissible(
+                        key: Key('note-${note.id}'),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          color: Colors.red.shade800,
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 24.0),
+                          child: const Icon(
+                            Icons.delete,
+                            color: Colors.white,
+                          ),
+                        ),
+                        onDismissed: (direction) {
+                          _deleteNote(note);
+                        },
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 4.0),
+                          title: Text(
+                            note.title ?? 'Untitled Note',
+                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              color: Colors.white70,
+                            ),
+                          ),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => NotesRenderScreen(
+                                  noteId: note.id,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      )),
+                      const SizedBox(height: 16),
+                    ],
                   ],
-                ),
-              ),
-            ...group.notes.asMap().entries.map((entry) {
-              final noteIndex = entry.key;
-              final note = entry.value;
-              return _buildDraggableNote(note, group, groupIndex, noteIndex);
-            }),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildNoteButton(Note note) {
-    return ListTile(
-      key: ValueKey(note.id),
-      title: Text(
-        note.title,
-        style: Theme.of(context).textTheme.bodyMedium,
-      ),
-      onTap: () {
-        // TODO: Navigate to note detail view
-      },
-    );
-  }
-
-  Widget _buildDraggableNote(Note note, NoteGroup group, int groupIndex, int noteIndex) {
-    return LongPressDraggable<_DragTarget>(
-      key: ValueKey('${group.header}_${note.id}'),
-      data: _DragTarget(note),
-      feedback: Material(
-        elevation: 4.0,
-        child: Container(
-          width: MediaQuery.of(context).size.width * 0.9,
-          padding: const EdgeInsets.all(16.0),
-          color: Theme.of(context).colorScheme.surface,
-          child: Text(
-            note.title,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-        ),
-      ),
-      child: DragTarget<_DragTarget>(
-        onWillAccept: (data) => data?.note.id != note.id,
-        onAccept: (data) {
-          final sourceNote = data.note;
-          if (sourceNote.customGroupId == null && note.customGroupId == null) {
-            _createCustomGroup(sourceNote, note);
-          } else if (note.customGroupId != null) {
-            _addToGroup(sourceNote, note.customGroupId!);
-          }
-        },
-        builder: (context, candidateData, rejectedData) {
-          return Draggable<Note>(
-            data: note,
-            feedback: Material(
-              elevation: 4.0,
-              child: Container(
-                width: MediaQuery.of(context).size.width * 0.9,
-                padding: const EdgeInsets.all(16.0),
-                color: Theme.of(context).colorScheme.surface,
-                child: Text(
-                  note.title,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
-            ),
-            child: DragTarget<Note>(
-              onWillAccept: (draggedNote) => draggedNote?.id != note.id,
-              onAccept: (draggedNote) {
-                setState(() {
-                  // Handle reordering within the same group
-                  if (draggedNote.customGroupId == note.customGroupId) {
-                    final sourceGroup = _groups.firstWhere(
-                      (g) => g.notes.any((n) => n.id == draggedNote.id)
-                    );
-                    final sourceIndex = sourceGroup.notes.indexWhere((n) => n.id == draggedNote.id);
-                    final targetIndex = group.notes.indexWhere((n) => n.id == note.id);
-                    
-                    sourceGroup.notes.removeAt(sourceIndex);
-                    group.notes.insert(targetIndex, draggedNote);
-                  } else {
-                    // Handle moving between groups
-                    if (draggedNote.customGroupId != null) {
-                      _removeFromGroup(draggedNote);
-                    }
-                    if (note.customGroupId != null) {
-                      _addToGroup(draggedNote, note.customGroupId!);
-                    } else {
-                      _createCustomGroup(draggedNote, note);
-                    }
-                  }
-                  _noteModel.saveNotes();
-                });
-              },
-              builder: (context, candidateData, rejectedData) {
-                return ListTile(
-                  title: Text(
-                    note.title,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  leading: const Icon(Icons.drag_indicator),
-                  trailing: note.customGroupId != null
-                    ? IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => _removeFromGroup(note),
-                      )
-                    : null,
-                  onTap: () {
-                    // TODO: Navigate to note detail view
-                  },
                 );
               },
             ),
-          );
-        },
+          ),
+        ],
       ),
-    );
-  }
-}
-
-class _CreateGroupDialog extends StatefulWidget {
-  final String? initialName;
-
-  const _CreateGroupDialog({this.initialName});
-
-  @override
-  _CreateGroupDialogState createState() => _CreateGroupDialogState();
-}
-
-class _CreateGroupDialogState extends State<_CreateGroupDialog> {
-  late TextEditingController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.initialName);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.initialName != null ? 'Rename Group' : 'Create Group'),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        decoration: const InputDecoration(
-          labelText: 'Group Name',
-          hintText: 'Enter a name for this group',
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(_controller.text),
-          child: const Text('Save'),
-        ),
-      ],
     );
   }
 } 

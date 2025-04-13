@@ -55,7 +55,7 @@ class AudioRecorderService {
         // Configure recording options
         await _audioRecorder.start(
           path: filePath,
-          encoder: AudioEncoder.AAC,
+          encoder: AudioEncoder.aacLc,
           bitRate: 128000,
           samplingRate: 44100,
         );

@@ -34,6 +34,7 @@ class Note {
     String? summary,
     List<String> tags = const [],
     List<double> embedding = const [],
+    DateTime? createdAt,
   }) {
     return Note()
       ..title = title
@@ -41,6 +42,6 @@ class Note {
       ..summary = summary
       ..tags = tags
       ..embedding = embedding
-      ..createdAt = DateTime.now();
+      ..createdAt = createdAt ?? DateTime.now();
   }
 } 

@@ -16,9 +16,198 @@ class NeuronDatabase {
       [NoteSchema, EventSchema, ReminderSchema, GraphDataSchema],
       directory: dir.path,
     );
+
+    // Only create sample notes if the database is completely empty
+    final existingNotes = await getAllNotes();
+    if (existingNotes.isEmpty) {
+      await createSampleNotes();
+      print('Created initial sample notes');
+    }
   }
   
   // ================ Note Operations ================
+  
+  /// Clear all notes from the database
+  static Future<void> clearAllNotes() async {
+    await isar.writeTxn(() async {
+      await isar.notes.clear();
+    });
+  }
+  
+  /// Create sample notes for testing
+  static Future<void> createSampleNotes() async {
+    final now = DateTime.now();
+    final sampleNotes = [
+      Note.create(
+        title: "Weekly Planning",
+        content: """# Week Overview
+
+## Key Objectives
+- [ ] Complete project milestones
+- [ ] Team sync meetings
+- [ ] Code review sessions
+
+## Focus Areas
+1. Performance optimization
+2. User interface improvements
+3. Documentation updates""",
+        tags: ["planning", "weekly"],
+        createdAt: now.subtract(const Duration(days: 7, hours: 3)),
+      ),
+      
+      Note.create(
+        title: "Neural Networks Research",
+        content: """## Deep Learning Concepts
+
+Key areas to explore:
+1. Attention mechanisms
+2. Transformer architectures
+3. Self-supervised learning
+
+### Implementation Notes
+- Use PyTorch for prototypes
+- Focus on efficiency
+- Consider mobile deployment""",
+        tags: ["research", "AI", "technical"],
+        createdAt: now.subtract(const Duration(days: 6, hours: 5)),
+      ),
+      
+      Note.create(
+        title: "Design System Guidelines",
+        content: """# UI/UX Guidelines
+
+## Color Palette
+- Primary: #1F1F2D
+- Secondary: #282837
+- Accent: #41414D
+
+## Typography
+- Headlines: SF Pro Display
+- Body: SF Pro Text
+- Code: SF Mono
+
+## Components
+1. Buttons
+2. Cards
+3. Navigation elements""",
+        tags: ["design", "UI", "guidelines"],
+        createdAt: now.subtract(const Duration(days: 5, hours: 8)),
+      ),
+      
+      Note.create(
+        title: "Project Architecture",
+        content: """# System Architecture
+
+## Components
+1. Frontend (Flutter)
+2. Backend Services
+3. Database Layer
+
+## Data Flow
+```
+User -> UI -> Service Layer -> Database
+```
+
+## Considerations
+- Scalability
+- Performance
+- Security""",
+        tags: ["architecture", "technical", "planning"],
+        createdAt: now.subtract(const Duration(days: 4, hours: 2)),
+      ),
+      
+      Note.create(
+        title: "Meeting Notes: Team Sync",
+        content: """## Team Sync - Sprint Planning
+
+**Attendees**: Alex, Sarah, Mike
+
+### Discussion Points
+1. Current sprint progress
+2. Blockers and solutions
+3. Next sprint goals
+
+### Action Items
+- [ ] Update documentation
+- [ ] Review pull requests
+- [ ] Schedule follow-up""",
+        tags: ["meeting", "team", "planning"],
+        createdAt: now.subtract(const Duration(days: 3, hours: 6)),
+      ),
+      
+      Note.create(
+        title: "Feature Ideas",
+        content: """# Future Features
+
+## High Priority
+1. Dark mode support
+2. Offline synchronization
+3. Cloud backup
+
+## Nice to Have
+- Custom themes
+- Advanced search
+- Data visualization
+
+## User Requests
+* Better navigation
+* More keyboard shortcuts
+* Export options""",
+        tags: ["features", "planning", "product"],
+        createdAt: now.subtract(const Duration(days: 2, hours: 4)),
+      ),
+      
+      Note.create(
+        title: "Code Review Guidelines",
+        content: """# Code Review Best Practices
+
+## Before Submitting
+1. Run all tests
+2. Check formatting
+3. Update documentation
+
+## Review Process
+- Check logic
+- Verify error handling
+- Consider edge cases
+
+## Common Issues
+* Missing tests
+* Poor naming
+* Duplicate code""",
+        tags: ["coding", "guidelines", "team"],
+        createdAt: now.subtract(const Duration(days: 1, hours: 7)),
+      ),
+      
+      Note.create(
+        title: "Learning Resources",
+        content: """# Development Resources
+
+## Online Courses
+1. Flutter Advanced
+2. System Design
+3. Machine Learning
+
+## Books
+- Clean Code
+- Design Patterns
+- Refactoring
+
+## Blogs & Websites
+* Flutter Dev
+* Medium
+* GitHub Blog""",
+        tags: ["learning", "resources", "development"],
+        createdAt: now.subtract(const Duration(hours: 5)),
+      ),
+    ];
+
+    await isar.writeTxn(() async {
+      for (final note in sampleNotes) {
+        await isar.notes.put(note);
+      }
+    });
+  }
   
   /// Save a note to the database
   static Future<int> saveNote(Note note) async {

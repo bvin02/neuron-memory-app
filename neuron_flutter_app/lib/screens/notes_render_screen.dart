@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'dart:ui';
+import '../services/db.dart';
+import '../models/note.dart';
 
 class NotesRenderScreen extends StatefulWidget {
-  final String initialContent;
+  final int noteId;
 
   const NotesRenderScreen({
     super.key,
-    required this.initialContent,
+    required this.noteId,
   });
 
   @override
@@ -20,11 +22,23 @@ class _NotesRenderScreenState extends State<NotesRenderScreen> {
   double _startX = 0.0;
   bool _isEdgeSwipe = false;
   final FocusNode _focusNode = FocusNode();
+  Note? _note;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.initialContent);
+    _controller = TextEditingController();
+    _loadNote();
+  }
+
+  Future<void> _loadNote() async {
+    final note = await NeuronDatabase.getNote(widget.noteId);
+    if (note != null) {
+      setState(() {
+        _note = note;
+        _controller.text = note.content ?? '';
+      });
+    }
   }
 
   @override
@@ -41,6 +55,13 @@ class _NotesRenderScreenState extends State<NotesRenderScreen> {
         _focusNode.requestFocus();
       }
     });
+  }
+
+  Future<void> _saveNote() async {
+    if (_note != null) {
+      _note!.content = _controller.text;
+      await NeuronDatabase.saveNote(_note!);
+    }
   }
 
   @override
@@ -121,7 +142,7 @@ class _NotesRenderScreenState extends State<NotesRenderScreen> {
                                         Icon(Icons.tag, size: 16, color: Colors.white.withAlpha(153)),
                                         const SizedBox(width: 8),
                                         Text(
-                                          'Trading • Arbitrage • Strategy • Finance',
+                                          _note?.tags.join(' • ') ?? 'No tags',
                                           style: TextStyle(
                                             color: Colors.white.withAlpha(204),
                                             fontSize: 12,
@@ -155,7 +176,7 @@ class _NotesRenderScreenState extends State<NotesRenderScreen> {
                                         Icon(Icons.article, size: 16, color: Colors.white.withAlpha(153)),
                                         const SizedBox(width: 8),
                                         Text(
-                                          'Index Trading • Portfolio Strategy • Risk Management',
+                                          _note?.backlinks.map((note) => note.title).join(' • ') ?? 'No backlinks',
                                           style: TextStyle(
                                             color: Colors.white.withAlpha(204),
                                             fontSize: 12,
@@ -175,7 +196,12 @@ class _NotesRenderScreenState extends State<NotesRenderScreen> {
                           _isEditing ? Icons.visibility : Icons.edit,
                           color: Colors.white70,
                         ),
-                        onPressed: _toggleEditMode,
+                        onPressed: () {
+                          _toggleEditMode();
+                          if (!_isEditing) {
+                            _saveNote();
+                          }
+                        },
                       ),
                     ],
                   ),
@@ -252,35 +278,6 @@ class _NotesRenderScreenState extends State<NotesRenderScreen> {
                                       fontSize: 20,
                                       fontWeight: FontWeight.bold,
                                       height: 1.4,
-                                    ),
-                                    listBullet: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 16,
-                                    ),
-                                    listIndent: 24.0,
-                                    blockSpacing: 16.0,
-                                    strong: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    em: TextStyle(
-                                      color: Colors.white.withAlpha(230),
-                                      fontStyle: FontStyle.italic,
-                                    ),
-                                    code: TextStyle(
-                                      color: Colors.white,
-                                      backgroundColor: Colors.white.withAlpha(26),
-                                      fontSize: 14,
-                                      fontFamily: 'monospace',
-                                    ),
-                                    codeblockDecoration: BoxDecoration(
-                                      color: Colors.white.withAlpha(26),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    blockquote: TextStyle(
-                                      color: Colors.white.withAlpha(204),
-                                      fontStyle: FontStyle.italic,
-                                      fontSize: 16,
                                     ),
                                     horizontalRuleDecoration: BoxDecoration(
                                       border: Border(
