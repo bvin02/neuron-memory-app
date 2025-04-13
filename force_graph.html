@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Note Backlink Graph</title>
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <style>
+            body {
+                font-family: sans-serif;
+            }
+            .link {
+                stroke: #aaa;
+            }
+            .node circle {
+                stroke: #fff;
+                stroke-width: 1.5px;
+            }
+            .node text {
+                pointer-events: none;
+                font-size: 12px;
+            }
+        </style>
+    </head>
+    <body>
+        <h2>Note Backlink Network</h2>
+        <svg width="800" height="800"></svg>
+
+        <script>
+            fetch("db.json")
+                .then((response) => response.json())
+                .then((notes) => {
+                    const nodes = notes.map((n) => ({ id: n.id }));
+                    const links = [];
+
+                    notes.forEach((note) => {
+                        note.backlinks.forEach((targetId) => {
+                            links.push({ source: note.id, target: targetId });
+                        });
+                    });
+
+                    const svg = d3.select("svg");
+                    const width = +svg.attr("width");
+                    const height = +svg.attr("height");
+
+                    const simulation = d3
+                        .forceSimulation(nodes)
+                        .force(
+                            "link",
+                            d3
+                                .forceLink(links)
+                                .id((d) => d.id)
+                                .distance(200)
+                        )
+                        .force("charge", d3.forceManyBody().strength(-50))
+                        .force("center", d3.forceCenter(width / 2, height / 2))
+                        .force(
+                            "link",
+                            d3
+                                .forceLink(links)
+                                .id((d) => d.id)
+                                .distance(100)
+                        )
+
+                        .force("collide", d3.forceCollide(15)) // Prevents node overlap
+                        .force("bounce", bounceWalls(width, height));
+
+                    const link = svg
+                        .append("g")
+                        .attr("stroke", "#999")
+                        .attr("stroke-opacity", 0.6)
+                        .selectAll("line")
+                        .data(links)
+                        .enter()
+                        .append("line")
+                        .attr("class", "link");
+
+                    const node = svg
+                        .append("g")
+                        .attr("stroke", "gray")
+                        .attr("stroke-width", 0.5)
+                        .selectAll("g")
+                        .data(nodes)
+                        .enter()
+                        .append("g")
+                        .attr("class", "node");
+
+                    node.append("circle").attr("r", 10).attr("fill", "#69b3a2");
+
+                    node.append("text")
+                        .attr("x", 12)
+                        .attr("dy", "0.35em")
+                        .text((d) => d.id);
+
+                    simulation.on("tick", () => {
+                        link.attr("x1", (d) => d.source.x)
+                            .attr("y1", (d) => d.source.y)
+                            .attr("x2", (d) => d.target.x)
+                            .attr("y2", (d) => d.target.y);
+
+                        node.attr(
+                            "transform",
+                            (d) => `translate(${d.x},${d.y})`
+                        );
+                    });
+                    function bounceWalls(
+                        width,
+                        height,
+                        margin = 20,
+                        strength = 0.5
+                    ) {
+                        return function forceBounce(alpha) {
+                            for (const node of nodes) {
+                                if (node.x < margin)
+                                    node.vx += (margin - node.x) * strength;
+                                if (node.x > width - margin)
+                                    node.vx +=
+                                        (width - margin - node.x) * strength;
+                                if (node.y < margin)
+                                    node.vy += (margin - node.y) * strength;
+                                if (node.y > height - margin)
+                                    node.vy +=
+                                        (height - margin - node.y) * strength;
+                            }
+                        };
+                    }
+                    function dragstarted(event, d) {
+                        if (!event.active)
+                            simulation.alphaTarget(0.3).restart();
+                        d.fx = d.x;
+                        d.fy = d.y;
+                    }
+
+                    function dragged(event, d) {
+                        d.fx = event.x;
+                        d.fy = event.y;
+                    }
+
+                    function dragended(event, d) {
+                        if (!event.active) simulation.alphaTarget(0);
+                        d.fx = null;
+                        d.fy = null;
+                    }
+
+                    // Apply drag behavior to nodes
+                    node.call(
+                        d3
+                            .drag()
+                            .on("start", dragstarted)
+                            .on("drag", dragged)
+                            .on("end", dragended)
+                            .container(document.body)
+                    );
+
+                    node.on("click", (event, d) => {
+                        showNotePreview(d.id); // custom function
+                    });
+
+                    function showNotePreview(noteId) {
+                        noteMap = Object.fromEntries(
+                            notes.map((n) => [n.id, n])
+                        );
+                        const note = noteMap[noteId];
+                        if (!note) return;
+
+                        document.getElementById("note-id").textContent =
+                            note.id;
+                        document.getElementById("note-text").textContent =
+                            note.text.slice(0, 400); // preview
+                        document.getElementById("note-preview").style.display =
+                            "block";
+                    }
+
+                    function hidePreview() {
+                        document.getElementById("note-preview").style.display =
+                            "none";
+                    }
+                })
+
+                .catch((error) =>
+                    console.error("Failed to load db.json:", error)
+                );
+        </script>
+        <div
+            id="note-preview"
+            style="
+                position: absolute;
+                max-width: 300px;
+                top: 20px;
+                left: 20px;
+                background: white;
+                border: 1px solid #ccc;
+                border-radius: 6px;
+                padding: 10px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                font-size: 14px;
+                display: none;
+                z-index: 1000;
+            "
+        >
+            <strong id="note-id"></strong>
+            <p id="note-text"></p>
+            <button onclick="hidePreview()">Close</button>
+        </div>
+    </body>
+</html>
