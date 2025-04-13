@@ -288,80 +288,115 @@ class _TimeGrid extends StatelessWidget {
     required this.onEventDelete,
   });
 
-  List<List<CalendarEvent>> _groupOverlappingEvents(List<CalendarEvent> events) {
+  // Helper method to group overlapping events
+  List<List<CalendarEvent>> _groupOverlappingEvents() {
     if (events.isEmpty) return [];
 
-    // Sort events by creation time (using id which is based on timestamp)
+    // Sort events by start time
     final sortedEvents = List<CalendarEvent>.from(events)
-      ..sort((a, b) => int.parse(a.id).compareTo(int.parse(b.id)));
+      ..sort((a, b) {
+        final aStartMinutes = a.startTime.hour * 60 + a.startTime.minute;
+        final bStartMinutes = b.startTime.hour * 60 + b.startTime.minute;
+        return aStartMinutes.compareTo(bStartMinutes);
+      });
 
     List<List<CalendarEvent>> groups = [];
-    List<CalendarEvent> currentGroup = [];
 
     for (var event in sortedEvents) {
-      final eventStart = event.startTime.hour * 60 + event.startTime.minute;
-      final eventEnd = event.endTime.hour * 60 + event.endTime.minute;
+      final eventStartMinutes = event.startTime.hour * 60 + event.startTime.minute;
+      final eventEndMinutes = event.endTime.hour * 60 + event.endTime.minute;
       
-      if (currentGroup.isEmpty) {
-        currentGroup.add(event);
-        continue;
-      }
-
-      // Check each column (index) in the current group for a free space
-      bool foundSpace = false;
-      for (int columnIndex = 0; columnIndex < currentGroup.length + 1; columnIndex++) {
+      // Try to find an existing group where this event doesn't overlap with any event
+      bool addedToGroup = false;
+      
+      for (var group in groups) {
         bool hasOverlap = false;
         
-        // Check if this column has any overlapping events
-        for (int i = 0; i < currentGroup.length; i++) {
-          if (i % (currentGroup.length + 1) != columnIndex) continue;
+        for (var groupEvent in group) {
+          final groupEventStartMinutes = groupEvent.startTime.hour * 60 + groupEvent.startTime.minute;
+          final groupEventEndMinutes = groupEvent.endTime.hour * 60 + groupEvent.endTime.minute;
           
-          final groupEvent = currentGroup[i];
-          final groupEventStart = groupEvent.startTime.hour * 60 + groupEvent.startTime.minute;
-          final groupEventEnd = groupEvent.endTime.hour * 60 + groupEvent.endTime.minute;
-          
-          if (!(eventStart >= groupEventEnd || eventEnd <= groupEventStart)) {
+          // Check if events overlap in time
+          if (!(eventStartMinutes >= groupEventEndMinutes || eventEndMinutes <= groupEventStartMinutes)) {
             hasOverlap = true;
             break;
           }
         }
         
+        // If no overlap with any event in this group, add to group
         if (!hasOverlap) {
-          // Insert the event at the appropriate position to maintain column order
-          int insertIndex = columnIndex;
-          while (insertIndex < currentGroup.length && 
-                 (insertIndex % (currentGroup.length + 1)) != columnIndex) {
-            insertIndex++;
-          }
-          currentGroup.insert(insertIndex, event);
-          foundSpace = true;
+          group.add(event);
+          addedToGroup = true;
           break;
         }
       }
       
-      if (!foundSpace) {
-        // If no space found in current group, start a new group
-        groups.add(List<CalendarEvent>.from(currentGroup));
-        currentGroup = [event];
+      // If not added to any existing group, create a new group
+      if (!addedToGroup) {
+        groups.add([event]);
       }
     }
     
-    if (currentGroup.isNotEmpty) {
-      groups.add(currentGroup);
+    return groups;
+  }
+  
+  // Create column groups for overlapping events
+  List<List<CalendarEvent>> _createOverlapColumns(List<CalendarEvent> events) {
+    if (events.isEmpty) return [];
+    
+    List<List<CalendarEvent>> columns = [[]];
+    
+    for (var event in events) {
+      bool placed = false;
+      
+      // Try to place in existing column
+      for (var column in columns) {
+        bool canPlace = true;
+        
+        for (var columnEvent in column) {
+          final eventStart = event.startTime.hour * 60 + event.startTime.minute;
+          final eventEnd = event.endTime.hour * 60 + event.endTime.minute;
+          final columnEventStart = columnEvent.startTime.hour * 60 + columnEvent.startTime.minute;
+          final columnEventEnd = columnEvent.endTime.hour * 60 + columnEvent.endTime.minute;
+          
+          // Check for time overlap
+          if (!(eventStart >= columnEventEnd || eventEnd <= columnEventStart)) {
+            canPlace = false;
+          break;
+        }
+      }
+      
+        if (canPlace) {
+          column.add(event);
+          placed = true;
+          break;
+        }
+      }
+      
+      // Create new column if couldn't place in existing ones
+      if (!placed) {
+        columns.add([event]);
+      }
     }
     
-    return groups;
+    return columns;
   }
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final eventGroups = _groupOverlappingEvents(events);
+        final hourHeight = constraints.maxHeight / 24;
+        final leftPadding = 50.0; // Time labels width
+        final rightPadding = 10.0; // New right padding
+        final fullWidth = constraints.maxWidth - leftPadding - rightPadding; // Account for time labels and right padding
+        
+        // Group events that don't overlap in time
+        final eventGroups = _groupOverlappingEvents();
         
         return Stack(
           children: [
-            // Time labels
+            // Time labels and hour lines
             Column(
               children: List.generate(24, (hour) {
                 return Expanded(
@@ -374,31 +409,36 @@ class _TimeGrid extends StatelessWidget {
                         ),
                       ),
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 8.0),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          '${hour % 12 == 0 ? 12 : hour % 12} ${hour < 12 ? 'a' : 'p'}',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.5),
-                            fontSize: 12,
+                    child: Row(
+                      children: [
+                        // Time label
+                        SizedBox(
+                          width: leftPadding,
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 8.0),
+                            child: Text(
+                              '${hour % 12 == 0 ? 12 : hour % 12} ${hour < 12 ? 'a' : 'p'}',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.5),
+                                fontSize: 12,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                        // Empty space for events
+                        Expanded(child: Container()),
+                      ],
                     ),
                   ),
                 );
               }),
             ),
-            // Events
+            
+            // Render all events with proper overlapping
             ...eventGroups.expand((group) {
-              final eventWidth = (constraints.maxWidth - 58) / group.length;
-              
-              return group.asMap().entries.map((entry) {
-                final index = entry.key;
-                final event = entry.value;
-                
+              if (group.length == 1) {
+                // For single events in a group (no overlaps), use full width
+                final event = group[0];
                 final startHour = event.startTime.hour;
                 final startMinute = event.startTime.minute;
                 final endHour = event.endTime.hour;
@@ -408,73 +448,303 @@ class _TimeGrid extends StatelessWidget {
                 final endPosition = endHour + (endMinute / 60);
                 final duration = endPosition - startPosition;
 
-                final hourHeight = constraints.maxHeight / 24;
-                final top = startPosition * hourHeight;
-                final height = duration * hourHeight;
-
-                return Positioned(
-                  top: top,
-                  height: height,
-                  left: 50 + (index * eventWidth),
-                  width: eventWidth - 4, // 4px gap between events
-                  child: GestureDetector(
-                    onTap: () => onEventTap(event),
-                    child: Dismissible(
-                      key: Key(event.id),
-                      direction: DismissDirection.endToStart,
-                      background: Container(
-                        alignment: Alignment.centerRight,
-                        padding: const EdgeInsets.only(right: 20.0),
-                        color: Colors.red,
-                        child: const Icon(Icons.delete, color: Colors.white),
-                      ),
-                      onDismissed: (_) => onEventDelete(event),
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(vertical: 2),
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: event.color.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: event.color.withOpacity(0.5),
-                            width: 1,
-                          ),
+                return [
+                  Positioned(
+                    top: startPosition * hourHeight,
+                    height: duration * hourHeight,
+                    left: leftPadding, // Start after time labels
+                    width: fullWidth, // Take full width minus padding
+                    child: GestureDetector(
+                      onTap: () => onEventTap(event),
+                      child: Dismissible(
+                        key: Key(event.id),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 20.0),
+                          color: Colors.red,
+                          child: const Icon(Icons.delete, color: Colors.white),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              event.title,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                        onDismissed: (_) => onEventDelete(event),
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: event.color.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: event.color.withOpacity(0.5),
+                              width: 1,
                             ),
-                            if (event.description.isNotEmpty)
-                              Text(
-                                event.description,
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.7),
-                                  fontSize: 12,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      event.title,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${_formatTime(event.startTime)} - ${_formatTime(event.endTime)}',
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.7),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
                               ),
-                          ],
+                              if (event.description.isNotEmpty)
+                                Text(
+                                  event.description,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.7),
+                                    fontSize: 12,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              });
+                  )
+                ];
+              } else {
+                // Multiple events in a group - these might overlap
+                // Find truly overlapping events by time
+                final overlapGroups = <List<CalendarEvent>>[];
+                for (var event in group) {
+                  bool addedToGroup = false;
+                  
+                  for (var overlapGroup in overlapGroups) {
+                    bool overlapsWithAny = false;
+                    
+                    for (var groupEvent in overlapGroup) {
+                      final eventStart = event.startTime.hour * 60 + event.startTime.minute;
+                      final eventEnd = event.endTime.hour * 60 + event.endTime.minute;
+                      final groupEventStart = groupEvent.startTime.hour * 60 + groupEvent.startTime.minute;
+                      final groupEventEnd = groupEvent.endTime.hour * 60 + groupEvent.endTime.minute;
+                      
+                      // Check for time overlap
+                      if (!(eventStart >= groupEventEnd || eventEnd <= groupEventStart)) {
+                        overlapsWithAny = true;
+                        break;
+                      }
+                    }
+                    
+                    if (overlapsWithAny) {
+                      overlapGroup.add(event);
+                      addedToGroup = true;
+                      break;
+                    }
+                  }
+                  
+                  if (!addedToGroup) {
+                    overlapGroups.add([event]);
+                  }
+                }
+                
+                // Render each overlap group
+                List<Widget> allPositionedEvents = [];
+                
+                for (var overlapGroup in overlapGroups) {
+                  if (overlapGroup.length == 1) {
+                    // Single event in this overlap group - full width
+                    final event = overlapGroup[0];
+                    final startHour = event.startTime.hour;
+                    final startMinute = event.startTime.minute;
+                    final endHour = event.endTime.hour;
+                    final endMinute = event.endTime.minute;
+                    
+                    final startPosition = startHour + (startMinute / 60);
+                    final endPosition = endHour + (endMinute / 60);
+                    final duration = endPosition - startPosition;
+                    
+                    allPositionedEvents.add(
+                      Positioned(
+                        top: startPosition * hourHeight,
+                        height: duration * hourHeight,
+                        left: leftPadding,
+                        width: fullWidth,
+                        child: GestureDetector(
+                          onTap: () => onEventTap(event),
+                          child: Dismissible(
+                            key: Key(event.id),
+                            direction: DismissDirection.endToStart,
+                            background: Container(
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.only(right: 20.0),
+                              color: Colors.red,
+                              child: const Icon(Icons.delete, color: Colors.white),
+                            ),
+                            onDismissed: (_) => onEventDelete(event),
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: event.color.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: event.color.withOpacity(0.5),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          event.title,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${_formatTime(event.startTime)} - ${_formatTime(event.endTime)}',
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.7),
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (event.description.isNotEmpty)
+                                    Text(
+                                      event.description,
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.7),
+                                        fontSize: 12,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    );
+                  } else {
+                    // Multiple events - divide width
+                    final eventWidth = fullWidth / overlapGroup.length;
+                    
+                    for (int i = 0; i < overlapGroup.length; i++) {
+                      final event = overlapGroup[i];
+                      final startHour = event.startTime.hour;
+                      final startMinute = event.startTime.minute;
+                      final endHour = event.endTime.hour;
+                      final endMinute = event.endTime.minute;
+                      
+                      final startPosition = startHour + (startMinute / 60);
+                      final endPosition = endHour + (endMinute / 60);
+                      final duration = endPosition - startPosition;
+                      
+                      allPositionedEvents.add(
+                        Positioned(
+                          top: startPosition * hourHeight,
+                          height: duration * hourHeight,
+                          left: leftPadding + (i * eventWidth),
+                          width: eventWidth - 4, // 4px gap between events
+                          child: GestureDetector(
+                            onTap: () => onEventTap(event),
+                            child: Dismissible(
+                              key: Key(event.id),
+                              direction: DismissDirection.endToStart,
+                              background: Container(
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.only(right: 20.0),
+                                color: Colors.red,
+                                child: const Icon(Icons.delete, color: Colors.white),
+                              ),
+                              onDismissed: (_) => onEventDelete(event),
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: event.color.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: event.color.withOpacity(0.5),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      event.title,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      '${_formatTime(event.startTime)}-${_formatTime(event.endTime)}',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.7),
+                                        fontSize: 10,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    if (event.description.isNotEmpty && eventWidth > 100)
+                                      Text(
+                                        event.description,
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.7),
+                                          fontSize: 12,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                      );
+                    }
+                  }
+                }
+                
+                return allPositionedEvents;
+              }
             }).toList(),
           ],
         );
       },
     );
+  }
+  
+  // Format time for display
+  String _formatTime(TimeOfDay timeOfDay) {
+    final hour = timeOfDay.hourOfPeriod == 0 ? 12 : timeOfDay.hourOfPeriod;
+    final minute = timeOfDay.minute.toString().padLeft(2, '0');
+    final period = timeOfDay.period == DayPeriod.am ? 'am' : 'pm';
+    return '$hour:$minute $period';
   }
 }
 
