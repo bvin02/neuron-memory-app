@@ -22,15 +22,15 @@ for i, note in enumerate(notes):
     print("Current ID:", current_id)
     # Compare with all other embeddings
     others = torch.stack([
-        emb for j, emb in enumerate(note_embeddings) if j != i - 1
+        emb for j, emb in enumerate(note_embeddings) if j != i 
     ])
-    other_ids = [note_ids[j] for j in range(len(note_ids)) if j != i - 1]
+    other_ids = [note_ids[j] for j in range(len(note_ids)) if j != i ]
 
     similarities = util.cos_sim(current_emb, others).squeeze(0)  # shape: (N,)
     print(similarities)
     top_matches = [
         (other_ids[j], similarities[j].item())
-        for j in range(len(other_ids)) if similarities[j] >= 0.7
+        for j in range(len(other_ids)) if similarities[j] >= 0.65
     ]
     print("Top matches:", top_matches)
 
