@@ -22,6 +22,77 @@ class MyApp extends StatelessWidget {
   }
 }
 
+class AudioRecorderService {
+  final _audioRecorder = Record();
+  bool _isRecording = false;
+  String? _recordedFilePath;
+
+  bool get isRecording => _isRecording;
+  String? get recordedFilePath => _recordedFilePath;
+
+  Future<bool> initRecorder() async {
+    try {
+      final hasPermission = await _audioRecorder.hasPermission();
+      return hasPermission;
+    } catch (e) {
+      print('Error initializing recorder: $e');
+      return false;
+    }
+  }
+
+  Future<bool> startRecording() async {
+    if (_isRecording) {
+      return false; // Already recording
+    }
+
+    try {
+      if (await _audioRecorder.hasPermission()) {
+        // Get the temporary directory
+        final directory = await getTemporaryDirectory();
+        final filePath = '${directory.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        _recordedFilePath = filePath;
+        
+        // Configure recording options
+        await _audioRecorder.start(
+          path: filePath,
+          encoder: AudioEncoder.AAC,
+          bitRate: 128000,
+          samplingRate: 44100,
+        );
+        
+        _isRecording = true;
+        return true;
+      } else {
+        print('Microphone permission not granted');
+        return false;
+      }
+    } catch (e) {
+      print('Error starting recording: $e');
+      _isRecording = false;
+      return false;
+    }
+  }
+
+  Future<String?> stopRecording() async {
+    try {
+      if (_isRecording) {
+        final path = await _audioRecorder.stop();
+        _isRecording = false;
+        return path;
+      }
+      return null;
+    } catch (e) {
+      print('Error stopping recording: $e');
+      _isRecording = false;
+      return null;
+    }
+  }
+
+  void dispose() {
+    _audioRecorder.dispose();
+  }
+}
+
 class RecordTestPage extends StatefulWidget {
   const RecordTestPage({super.key});
 
@@ -30,7 +101,7 @@ class RecordTestPage extends StatefulWidget {
 }
 
 class _RecordTestPageState extends State<RecordTestPage> {
-  final _audioRecorder = Record();
+  final _audioService = AudioRecorderService();
   bool _isRecording = false;
   String? _recordedFilePath;
 
@@ -42,71 +113,34 @@ class _RecordTestPageState extends State<RecordTestPage> {
 
   @override
   void dispose() {
-    _audioRecorder.dispose();
+    _audioService.dispose();
     super.dispose();
   }
 
   Future<void> _initRecorder() async {
-    try {
-      final hasPermission = await _audioRecorder.hasPermission();
-      if (!hasPermission) {
-        print('Microphone permission not granted');
-      }
-    } catch (e) {
-      print('Error initializing recorder: $e');
-    }
+    await _audioService.initRecorder();
   }
 
-  Future<void> _startRecording() async {
-    try {
-      if (await _audioRecorder.hasPermission()) {
-        // Get the temporary directory
-        final directory = await getTemporaryDirectory();
-        _recordedFilePath = '${directory.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-        
-        // Start recording with minimal parameters for version 3.0.4
-        await _audioRecorder.start(
-          path: _recordedFilePath!,
-          encoder: AudioEncoder.AAC,
-          bitRate: 128000,
-          samplingRate: 44100,
-        );
-        
+  Future<void> _toggleRecording() async {
+    if (_isRecording) {
+      final path = await _audioService.stopRecording();
+      setState(() {
+        _isRecording = false;
+        if (path != null) {
+          _recordedFilePath = path;
+          print('Recording saved to: $path');
+        }
+      });
+    } else {
+      final success = await _audioService.startRecording();
+      if (success) {
         setState(() {
           _isRecording = true;
+          print('Started recording');
         });
-        
-        print('Started recording to: $_recordedFilePath');
       } else {
-        print('Microphone permission not granted');
+        print('Failed to start recording');
       }
-    } catch (e) {
-      print('Error starting recording: $e');
-      setState(() {
-        _isRecording = false;
-      });
-    }
-  }
-
-  Future<void> _stopRecording() async {
-    try {
-      if (_isRecording) {
-        final path = await _audioRecorder.stop();
-        setState(() {
-          _isRecording = false;
-        });
-        
-        if (path != null) {
-          print('Recording saved to: $path');
-        } else {
-          print('Recording stopped but no file path returned');
-        }
-      }
-    } catch (e) {
-      print('Error stopping recording: $e');
-      setState(() {
-        _isRecording = false;
-      });
     }
   }
 
@@ -126,9 +160,13 @@ class _RecordTestPageState extends State<RecordTestPage> {
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: _isRecording ? _stopRecording : _startRecording,
+              onPressed: _toggleRecording,
               child: Text(_isRecording ? 'Stop Recording' : 'Start Recording'),
             ),
+            if (_recordedFilePath != null) ...[
+              const SizedBox(height: 20),
+              Text('Last recording: $_recordedFilePath'),
+            ]
           ],
         ),
       ),

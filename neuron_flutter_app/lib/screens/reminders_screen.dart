@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import '../models/reminder.dart';
-import 'dart:math';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
+import '../services/db.dart';
 
 class RemindersScreen extends StatefulWidget {
   final List<Reminder> reminders;
@@ -20,11 +21,11 @@ class RemindersScreen extends StatefulWidget {
 
 class _RemindersScreenState extends State<RemindersScreen> {
   late List<Reminder> _reminders;
-  final TextEditingController _textController = TextEditingController();
+  final TextEditingController _titleController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   final TextEditingController _dateController = TextEditingController();
   final FocusNode _dateFocusNode = FocusNode();
-  String? _editingReminderId;
+  int? _editingReminderId;
   String? _originalDate;
   double _startX = 0.0;
   bool _isEdgeSwipe = false;
@@ -37,43 +38,66 @@ class _RemindersScreenState extends State<RemindersScreen> {
 
   @override
   void dispose() {
-    _textController.dispose();
+    _titleController.dispose();
     _focusNode.dispose();
     _dateController.dispose();
     _dateFocusNode.dispose();
     super.dispose();
   }
 
-  void _addReminder() {
-    if (_textController.text.trim().isEmpty) return;
+  void _addReminder() async {
+    if (_titleController.text.trim().isEmpty) return;
 
+    print('Creating new reminder with title: ${_titleController.text}');
+    final reminder = Reminder.create(
+      title: _titleController.text,
+      dueDate: DateTime.now(),
+      dueTime: DateTime.now().add(const Duration(hours: 23, minutes: 59)),
+    );
+    
+    final savedId = await NeuronDatabase.saveReminder(reminder);
+    print('Saved new reminder to database with id: $savedId');
+    _titleController.clear();
+    
+    final updatedReminders = await NeuronDatabase.getAllReminders();
+    print('Retrieved ${updatedReminders.length} reminders from database');
     setState(() {
-      _reminders.add(
-        Reminder(
-          id: Random().nextInt(1000000).toString(),
-          text: _textController.text,
-          dateTime: DateTime.now(),
-          time: '23:59', // Store in 24-hour format
-        ),
-      );
-      _textController.clear();
-      widget.onRemindersUpdated(_reminders);
+      _reminders.clear();
+      _reminders.addAll(updatedReminders);
+      print('Updated local list with ${_reminders.length} reminders');
     });
+    widget.onRemindersUpdated(_reminders);
+    print('Notified parent of reminders update');
   }
 
-  void _toggleReminder(Reminder reminder) {
+  void _toggleReminder(Reminder reminder) async {
+    print('Toggling reminder with id: ${reminder.id}, title: ${reminder.title}');
+    final updatedReminder = reminder.copyWith(
+      isCompleted: !reminder.isCompleted,
+    );
+    print('Created updated reminder with isCompleted: ${updatedReminder.isCompleted}');
+    await NeuronDatabase.saveReminder(updatedReminder);
+    print('Saved updated reminder to database');
+    
     setState(() {
-      final index = _reminders.indexOf(reminder);
-      _reminders[index] = reminder.copyWith(isCompleted: !reminder.isCompleted);
-      widget.onRemindersUpdated(_reminders);
+      final index = _reminders.indexWhere((r) => r.id == reminder.id);
+      if (index != -1) {
+        _reminders[index] = updatedReminder;
+        print('Updated reminder in local list at index: $index');
+      } else {
+        print('Warning: Could not find reminder with id ${reminder.id} in local list');
+      }
     });
+    widget.onRemindersUpdated(_reminders);
+    print('Notified parent of reminders update');
   }
 
-  void _deleteReminder(Reminder reminder) {
+  void _deleteReminder(Reminder reminder) async {
+    await NeuronDatabase.deleteReminder(reminder.id);
     setState(() {
       _reminders.remove(reminder);
-      widget.onRemindersUpdated(_reminders);
     });
+    widget.onRemindersUpdated(_reminders);
   }
 
   Future<void> _selectDate(Reminder reminder) async {
@@ -132,7 +156,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                     ),
                   ),
                   child: CalendarDatePicker(
-                    initialDate: reminder.dateTime,
+                    initialDate: reminder.dueDate,
                     firstDate: DateTime(2000),
                     lastDate: DateTime(2100),
                     onDateChanged: (date) {
@@ -149,15 +173,12 @@ class _RemindersScreenState extends State<RemindersScreen> {
     
     if (picked != null) {
       setState(() {
-        final index = _reminders.indexOf(reminder);
-        _reminders[index] = reminder.copyWith(
-          dateTime: DateTime(
-            picked.year,
-            picked.month,
-            picked.day,
-            reminder.dateTime.hour,
-            reminder.dateTime.minute,
-          ),
+        reminder.dueDate = DateTime(
+          picked.year,
+          picked.month,
+          picked.day,
+          reminder.dueTime?.hour ?? reminder.dueDate.hour,
+          reminder.dueTime?.minute ?? reminder.dueDate.minute,
         );
         widget.onRemindersUpdated(_reminders);
       });
@@ -165,32 +186,33 @@ class _RemindersScreenState extends State<RemindersScreen> {
   }
 
   Future<void> _selectTime(Reminder reminder) async {
-    // Parse the current time from 24-hour format
-    final currentTime = reminder.time.split(':');
-    final hour = int.parse(currentTime[0]);
-    final minute = int.parse(currentTime[1].split(' ')[0]);
+    // Get current time values
+    final initialTime = TimeOfDay(
+      hour: reminder.dueTime?.hour ?? 23,
+      minute: reminder.dueTime?.minute ?? 59,
+    );
     
     final TimeOfDay? picked = await showDialog<TimeOfDay>(
       context: context,
       builder: (context) {
         return Dialog(
           backgroundColor: Colors.transparent,
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                gradient: const RadialGradient(
-                  center: Alignment(1.0, 1.0),
-                  radius: 2,
-                  colors: [
-                    Color(0xFF0F0F17),
-                    Color.fromARGB(255, 30, 30, 46),
-                    Color.fromARGB(255, 35, 36, 58),
-                  ],
-                  stops: [0.1, 0.6, 0.9],
-                ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: const RadialGradient(
+                center: Alignment(1.0, 1.0),
+                radius: 2,
+                colors: [
+                  Color(0xFF0F0F17),
+                  Color.fromARGB(255, 30, 30, 46),
+                  Color.fromARGB(255, 35, 36, 58),
+                ],
+                stops: [0.1, 0.6, 0.9],
               ),
+            ),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
               child: Container(
                 padding: const EdgeInsets.all(1.5),
                 decoration: BoxDecoration(
@@ -206,10 +228,10 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: Container(
-                  padding: EdgeInsets.zero,
+                  padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 1),
                   constraints: const BoxConstraints(
                     maxHeight: 500,
-                    maxWidth: 380,
+                    maxWidth: 350,
                   ),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(22.5),
@@ -226,54 +248,43 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   ),
                   child: Theme(
                     data: Theme.of(context).copyWith(
-                      colorScheme: ColorScheme.dark(
-                        primary: const Color.fromARGB(255, 27, 27, 39),
-                        onPrimary: const Color.fromARGB(255, 151, 139, 243),
-                        surface: const Color.fromARGB(255, 27, 27, 39),
-                        onSurface: Colors.white,
-                      ),
                       timePickerTheme: TimePickerThemeData(
-                        backgroundColor: const Color.fromARGB(0, 0, 0, 0),
-                        dayPeriodTextColor: const Color.fromARGB(255, 41, 40, 55),
-                        dayPeriodColor: const Color.fromARGB(223, 99, 99, 143),
-                        hourMinuteColor: const Color(0xFF32324b),
+                        backgroundColor: Colors.transparent,
                         hourMinuteShape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
+                          side: const BorderSide(color: Colors.white24, width: 1),
                         ),
                         dayPeriodShape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                          side: BorderSide.none,
+                          side: const BorderSide(color: Colors.white24, width: 1),
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24),
-                        ),
+                        dayPeriodColor: Colors.transparent,
+                        dayPeriodTextColor: Colors.white70,
+                        dayPeriodBorderSide: const BorderSide(color: Colors.white24),
+                        hourMinuteColor: MaterialStateColor.resolveWith((states) =>
+                          states.contains(MaterialState.selected)
+                              ? Colors.white24
+                              : Colors.transparent),
+                        hourMinuteTextColor: MaterialStateColor.resolveWith((states) =>
+                          states.contains(MaterialState.selected)
+                              ? Colors.white
+                              : Colors.white70),
                         dialHandColor: Colors.white70,
-                        dialBackgroundColor: Colors.transparent,
-                        dialTextColor: Colors.white,
-                        hourMinuteTextStyle: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          height: 1.2,
-                          leadingDistribution: TextLeadingDistribution.even,
-                          textBaseline: TextBaseline.ideographic,
-                        ),
+                        dialBackgroundColor: Colors.white10,
+                        dialTextColor: MaterialStateColor.resolveWith((states) =>
+                          states.contains(MaterialState.selected)
+                              ? Colors.black
+                              : Colors.white70),
+                        entryModeIconColor: Colors.white70,
                       ),
                       textButtonTheme: TextButtonThemeData(
                         style: TextButton.styleFrom(
-                          foregroundColor: const Color.fromARGB(255, 187, 178, 255),
+                          foregroundColor: Colors.white70,
                         ),
                       ),
                     ),
-                    child: SizedBox(
-                      width: 380,
-                      height: 500,
-                      child: TimePickerDialog(
-                        initialTime: TimeOfDay(hour: hour, minute: minute),
-                        initialEntryMode: TimePickerEntryMode.dialOnly,
-                        helpText: '',
-                        cancelText: 'Cancel',
-                        confirmText: 'OK',
-                      ),
+                    child: TimePickerDialog(
+                      initialTime: initialTime,
                     ),
                   ),
                 ),
@@ -286,24 +297,27 @@ class _RemindersScreenState extends State<RemindersScreen> {
     
     if (picked != null) {
       setState(() {
-        final index = _reminders.indexOf(reminder);
-        // Store in 24-hour format
-        _reminders[index] = reminder.copyWith(
-          time: '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}',
+        reminder.dueTime = DateTime(
+          reminder.dueDate.year,
+          reminder.dueDate.month,
+          reminder.dueDate.day,
+          picked.hour,
+          picked.minute,
         );
         widget.onRemindersUpdated(_reminders);
       });
     }
   }
 
-  // Helper method to convert 24-hour format to 12-hour display format
-  String _formatTimeForDisplay(String time24) {
-    final parts = time24.split(':');
-    final hour = int.parse(parts[0]);
-    final minute = parts[1];
-    final period = hour >= 12 ? 'p' : 'a';
-    final hour12 = hour % 12;
-    return '${hour12 == 0 ? 12 : hour12}:$minute $period';
+  // Helper method to convert DateTime to 12-hour display format
+  String _formatTimeForDisplay(DateTime? dateTime) {
+    if (dateTime == null) return '11:59p';
+    
+    final TimeOfDay timeOfDay = TimeOfDay(hour: dateTime.hour, minute: dateTime.minute);
+    final String period = timeOfDay.hour >= 12 ? 'p' : 'a';
+    final int hour = timeOfDay.hour > 12 ? timeOfDay.hour - 12 : (timeOfDay.hour == 0 ? 12 : timeOfDay.hour);
+    final String minute = timeOfDay.minute.toString().padLeft(2, '0');
+    return '$hour:$minute$period';
   }
 
   @override
@@ -350,12 +364,14 @@ class _RemindersScreenState extends State<RemindersScreen> {
                     children: [
                       Text(
                         'Reminders',
-                        style: Theme.of(context).textTheme.titleLarge,
+                        style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                       IconButton(
                         icon: const Icon(Icons.add, color: Colors.white70),
                         onPressed: () {
-                          if (_textController.text.trim().isNotEmpty) {
+                          if (_titleController.text.trim().isNotEmpty) {
                             _addReminder();
                           } else {
                             _focusNode.requestFocus();
@@ -412,7 +428,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                             itemBuilder: (context, index) {
                               final reminder = _reminders[index];
                               return Dismissible(
-                                key: Key(reminder.id),
+                                key: Key('reminder-${index}'),
                                 background: Container(
                                   alignment: Alignment.centerRight,
                                   padding: const EdgeInsets.only(right: 20.0),
@@ -431,8 +447,13 @@ class _RemindersScreenState extends State<RemindersScreen> {
                                     margin: const EdgeInsets.symmetric(vertical: 4),
                                     child: ListTile(
                                       leading: Checkbox(
+                                        key: Key('checkbox-${reminder.id}'),
                                         value: reminder.isCompleted,
-                                        onChanged: (_) => _toggleReminder(reminder),
+                                        onChanged: (bool? value) {
+                                          if (value != null) {
+                                            _toggleReminder(reminder);
+                                          }
+                                        },
                                         activeColor: Colors.white70,
                                         checkColor: Colors.black,
                                         shape: RoundedRectangleBorder(
@@ -444,7 +465,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                                         ),
                                       ),
                                       title: Text(
-                                        reminder.text,
+                                        reminder.title ?? 'Untitled Reminder',
                                         style: TextStyle(
                                           color: reminder.isCompleted ? Colors.white54 : Colors.white,
                                           fontStyle: reminder.isCompleted ? FontStyle.italic : FontStyle.normal,
@@ -457,7 +478,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                                             GestureDetector(
                                               onTap: () => _selectDate(reminder),
                                               child: Text(
-                                                '${reminder.dateTime.day}/${reminder.dateTime.month}',
+                                                '${reminder.dueDate.day}/${reminder.dueDate.month}',
                                                 style: const TextStyle(
                                                   color: Colors.white70,
                                                   fontSize: 12,
@@ -474,7 +495,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                                               child: GestureDetector(
                                                 onTap: () => _selectTime(reminder),
                                                 child: Text(
-                                                  _formatTimeForDisplay(reminder.time),
+                                                  _formatTimeForDisplay(reminder.dueTime),
                                                   style: const TextStyle(
                                                     color: Colors.white70,
                                                     fontSize: 12,
@@ -502,7 +523,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                         key: const Key('new_reminder'),
                         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
                         child: TextField(
-                          controller: _textController,
+                          controller: _titleController,
                           focusNode: _focusNode,
                           style: const TextStyle(color: Colors.white),
                           decoration: const InputDecoration(
